@@ -1,0 +1,39 @@
+Still Photo Editor — third-party notices
+
+Still is an independent project inspired by Snapseed. It is not affiliated with,
+endorsed by, or a pixel-identical replacement for Google or Snapseed.
+
+Bundled sample photograph: Luca Bravo, Unsplash
+https://unsplash.com/photos/brown-wooden-house-near-body-of-water-zAjdgNXsMeg
+https://images.unsplash.com/photo-1470770841072-f978cf4d019e
+Used under the Unsplash License: https://unsplash.com/license
+
+DM Sans font: Colophon Foundry / Google Fonts, SIL Open Font License 1.1.
+https://github.com/googlefonts/dm-fonts
+
+Lucide icons: Lucide Contributors, ISC License.
+https://lucide.dev/license
+
+React / React DOM: Meta Platforms, Inc. and affiliates, MIT License.
+https://github.com/facebook/react
+
+LibRaw-Wasm wrapper: ybouane and contributors, ISC License.
+https://github.com/ybouane/LibRaw-Wasm
+LibRaw engine: LibRaw LLC and contributors, LGPL 2.1 or CDDL 1.0 (dual license).
+https://www.libraw.org/about#licensing
+https://github.com/LibRaw/LibRaw
+Little CMS (bundled by LibRaw-Wasm): Marti Maria, MIT License.
+https://github.com/mm2/Little-CMS
+
+JSZip: Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso;
+MIT or GPLv3 (dual license; MIT selected).
+https://github.com/Stuk/jszip
+
+node-qrcode: Ryan Day and contributors, MIT License.
+https://github.com/soldair/node-qrcode
+jsQR: Cozmo, Apache License 2.0.
+https://github.com/cozmo/jsQR
+
+Vite, TypeScript, Vite PWA plugin and Workbox are used for building and caching.
+Their respective license texts, and direct runtime dependency licenses, are
+included in the generated licenses/ folder.
