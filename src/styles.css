@@ -4456,3 +4456,152 @@ select {
   color: #dcebcf;
   text-shadow: 0 1px 5px #000;
 }
+
+.text-transform {
+  position: absolute;
+  z-index: 4;
+  border: 1px dashed #e5f4d5;
+  box-shadow: 0 0 0 1px #18201366;
+  touch-action: none;
+  cursor: move;
+  transform-origin: center;
+  min-width: 24px;
+  min-height: 16px;
+}
+.text-rotation-handle {
+  position: absolute;
+  left: 50%;
+  top: -58px;
+  width: 44px;
+  height: 44px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 50%;
+  background: #c5dda1;
+  color: #24341b;
+  border: 2px solid #f0f8e5;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 12px #0006;
+  cursor: grab;
+  touch-action: none;
+  transform-origin: bottom center;
+}
+.text-transform:before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  width: 1px;
+  height: 16px;
+  background: #e5f4d5;
+  pointer-events: none;
+}
+.text-rotation-value {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #172013cf;
+  color: #e5f4d5;
+  padding: 3px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.id-photo-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke: #e3f2d6c9;
+  stroke-width: 0.4;
+  stroke-dasharray: 2 1.5;
+  filter: drop-shadow(0 1px 1px #0009);
+}
+.id-photo-controls {
+  margin-bottom: 20px;
+}
+.id-photo-controls select {
+  margin-bottom: 16px;
+}
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 20px;
+  color: #c4d4b6;
+  min-height: 44px;
+}
+.inline-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.export-conversion {
+  margin: 14px 0 18px;
+  color: #b6cba5;
+  font-size: 12px;
+}
+.export-dimensions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+.export-dimensions label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #b6cba5;
+}
+.export-dimensions input {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
+  border: 1px solid #4b603b;
+  background: #25321e;
+  color: #e4efd9;
+  padding: 11px;
+  border-radius: 6px;
+}
+.export-percent {
+  margin: 14px 0;
+}
+.export-percent button {
+  flex: 1;
+}
+.export-limit {
+  margin-top: 14px;
+}
+.id-photo-shortcut {
+  margin: 16px 0 24px;
+  font-size: 12px;
+}
+.export-output {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #50643e;
+  border-radius: 8px;
+  background: #26341f;
+}
+.export-output strong {
+  display: block;
+  color: #d4e6c3;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.export-output span {
+  display: block;
+  margin-top: 7px;
+  font-size: 11px;
+  color: #a9be96;
+}
+.export-output p {
+  font-size: 11px;
+  color: #e2bc82;
+  margin-top: 8px;
+}

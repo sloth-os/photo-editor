@@ -1,5 +1,6 @@
 import CurveGraph from "./CurveGraph";
 import CompositionControls from "./CompositionControls";
+import { idPhotoDimensions, idPhotoSizes } from "../lib/id-photo";
 import {
   Upload,
   FlipHorizontal2,
@@ -99,6 +100,48 @@ export default function ToolControls({
   );
   return (
     <>
+      {tool.id === "id-photo" && (
+        <div className="id-photo-controls">
+          <label className="field-label" htmlFor="id-photo-size">
+            ID photo size
+          </label>
+          <select
+            id="id-photo-size"
+            value={String(p.preset || "35x45")}
+            onChange={(e) => setParam("preset", e.target.value)}
+          >
+            {idPhotoSizes.map((size) => (
+              <option key={size.id} value={size.id}>
+                {size.name}
+              </option>
+            ))}
+          </select>
+          <label className="field-label" htmlFor="id-photo-dpi">
+            Print resolution
+          </label>
+          <select
+            id="id-photo-dpi"
+            value={Number(p.dpi || 300)}
+            onChange={(e) => setParam("dpi", Number(e.target.value))}
+          >
+            <option value={150}>150 dpi · small file</option>
+            <option value={300}>300 dpi · standard print</option>
+            <option value={600}>600 dpi · high resolution</option>
+          </select>
+          <p className="analysis-note">
+            {idPhotoDimensions(p).width} × {idPhotoDimensions(p).height} px ·{" "}
+            {Number(p.dpi || 300)} dpi
+          </p>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={!!p.guide}
+              onChange={(e) => setParam("guide", e.target.checked ? 1 : 0)}
+            />{" "}
+            Show framing guide
+          </label>
+        </div>
+      )}
       {["flip", "collage", "sticker", "background"].includes(tool.id) && (
         <CompositionControls
           edit={edit}

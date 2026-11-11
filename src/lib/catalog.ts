@@ -41,6 +41,7 @@ import {
   Sticker,
   Scissors,
   Smile,
+  ContactRound,
 } from "lucide-react";
 
 export type Params = Record<string, number | string>;
@@ -177,6 +178,19 @@ export const tools: Tool[] = [
     description: "A few moments, together.",
     controls: [c("gap", "Spacing", 2, 0, 10)],
     hint: "Create a collage grid or choose horizontal or vertical stitching. Your current edit is the first photo. Add up to eight more and reorder them. Everything stays editable in the stack.",
+  },
+  {
+    id: "id-photo",
+    name: "ID photo",
+    icon: ContactRound,
+    group: "Transform",
+    description: "A familiar format for your next application.",
+    controls: [
+      c("zoom", "Subject size", 100, 100, 250),
+      c("positionX", "Horizontal", 50, 0),
+      c("positionY", "Vertical", 50, 0),
+    ],
+    hint: "Choose a size and drag the photo to frame your face. Export keeps the selected print resolution. Use Remove background for a plain backdrop; confirm your issuer's framing requirements.",
   },
   {
     id: "perspective",
@@ -623,6 +637,8 @@ export function defaults(id: string): Params {
   if (id === "curves") params.channel = "rgb";
   if (id === "rotate") Object.assign(params, { turns: 0, flipX: 0, flipY: 0 });
   if (id === "flip") Object.assign(params, { flipX: 0, flipY: 0 });
+  if (id === "id-photo")
+    Object.assign(params, { preset: "35x45", dpi: 300, guide: 1 });
   if (id === "collage")
     Object.assign(params, {
       layout: "grid",

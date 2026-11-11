@@ -64,9 +64,8 @@ import {
   canvas,
   renderImage,
   histogram,
-  toBlob,
   fitDimensions,
-  resizeOutput,
+  loadImage,
 } from "./lib/engine";
 import {
   ACCEPT,
@@ -98,11 +97,20 @@ import {
 } from "./components/ui";
 import ToolControls from "./components/ToolControls";
 import TouchAdjustments from "./components/TouchAdjustments";
+import TextTransform from "./components/TextTransform";
+import ExportSizing from "./components/ExportSizing";
+import {
+  encodeOutput,
+  exportFileName,
+  measureOutput,
+  renderForExport,
+  resizedDimensions,
+} from "./lib/output";
+import { idPhotoDimensions } from "./lib/id-photo";
 import { analyze, cancelAnalysis } from "./lib/intelligence";
 import { prepareBatchEdits } from "./lib/batch";
 import { faceRegion } from "./lib/face-mesh";
 import CameraStudio from "./components/CameraStudio";
-import { withMetadata } from "./lib/metadata";
 import CommunityStudio from "./components/CommunityStudio";
 import { exportXmp } from "./lib/presets";
 import { exportSnapseed } from "./lib/snapseed";
@@ -191,6 +199,9 @@ export default function App() {
       `${import.meta.env.BASE_URL}images/alpine-lake.jpg`,
     ),
     [dragOver, setDragOver] = useState(false);
+  const [lookThumbnails, setLookThumbnails] = useState<Record<string, string>>(
+    {},
+  );
   const [mobilePanel, setMobilePanel] = useState(false),
     [recipes, setRecipes] = useState<Recipe[]>([]),
     [recipeName, setRecipeName] = useState("My everyday look");
@@ -210,6 +221,21 @@ export default function App() {
     [quality, setQuality] = useState(95),
     [exportSize, setExportSize] = useState("original");
   const [preserveMetadata, setPreserveMetadata] = useState(false);
+  const [nativeOutput, setNativeOutput] = useState({
+      width: 1800,
+      height: 1200,
+    }),
+    [customWidth, setCustomWidth] = useState("1800"),
+    [customHeight, setCustomHeight] = useState("1200"),
+    [sizePercent, setSizePercent] = useState(50),
+    [limitFileSize, setLimitFileSize] = useState(false),
+    [targetKB, setTargetKB] = useState("200"),
+    [measuringExport, setMeasuringExport] = useState(false);
+  const [supportedFormats] = useState(() =>
+    ["image/jpeg", "image/png", "image/webp"].filter((type) =>
+      canvas(1, 1).toDataURL(type).startsWith(`data:${type}`),
+    ),
+  );
   const [exportName, setExportName] = useState("alpine-escape-still"),
     [batchProgress, setBatchProgress] = useState("");
   const [incoming, setIncoming] = useState<File[]>([]),
@@ -229,7 +255,7 @@ export default function App() {
     toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     saveToken = useRef(0);
   const drag = useRef<{
-    type: "paint" | "pan" | "crop";
+    type: "paint" | "pan" | "crop" | "id-photo";
     x: number;
     y: number;
     pan: { x: number; y: number };
@@ -259,6 +285,27 @@ export default function App() {
         : stack,
     [stack, active, dirty, editingId],
   );
+  useEffect(() => {
+    if (dialog !== "export" || !photo) return;
+    let cancelled = false;
+    setMeasuringExport(true);
+    measureOutput(photo, previewEdits)
+      .then((size) => {
+        if (cancelled) return;
+        setNativeOutput(size);
+        setCustomWidth(String(size.width));
+        setCustomHeight(String(size.height));
+      })
+      .catch((error) => {
+        if (!cancelled) notify(errorText(error));
+      })
+      .finally(() => {
+        if (!cancelled) setMeasuringExport(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialog, photo, previewEdits]);
   const chosenLook = String(
     previewEdits.find((e) => e.tool === "look")?.params.look || "original",
   );
@@ -441,6 +488,33 @@ export default function App() {
     setThumb(c.toDataURL("image/jpeg", 0.8));
   }, [photo]);
   useEffect(() => {
+    let cancelled = false;
+    setLookThumbnails({});
+    (async () => {
+      try {
+        const image = await loadImage(thumb),
+          previews: Record<string, string> = {};
+        for (const look of looks) {
+          const result = await renderImage(
+            image,
+            look.id === "original"
+              ? []
+              : [{ id: "thumbnail", tool: "look", params: { look: look.id } }],
+            220,
+          );
+          previews[look.id] = result.toDataURL("image/jpeg", 0.9);
+          if (cancelled) return;
+        }
+        setLookThumbnails(previews);
+      } catch {
+        /* Keep the source thumbnail available if storage/decoding fails. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [thumb]);
+  useEffect(() => {
     if (!photo) return;
     const token = ++renderToken.current;
     setRendering(true);
@@ -552,6 +626,7 @@ export default function App() {
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setShowMask(false);
+    if (next.id === "id-photo") setExportSize("original");
     if (next.id === "raw" && photo?.raw) {
       const previous = [...previewEdits]
         .reverse()
@@ -858,6 +933,17 @@ export default function App() {
     }
     if (showOriginal) return;
     const corner = (e.target as HTMLElement).dataset.corner;
+    if (active.tool === "id-photo") {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = {
+        type: "id-photo",
+        x: e.clientX,
+        y: e.clientY,
+        pan,
+        params: { ...active.params },
+      };
+      return;
+    }
     if (
       e.pointerType === "touch" &&
       !commitTouch &&
@@ -962,6 +1048,33 @@ export default function App() {
     }
     const d = drag.current;
     if (!d) return;
+    if (d.type === "id-photo" && d.params && active) {
+      const rect = photoRef.current!.getBoundingClientRect();
+      setActive({
+        ...active,
+        params: {
+          ...active.params,
+          positionX: Math.max(
+            0,
+            Math.min(
+              100,
+              Number(d.params.positionX ?? 50) -
+                ((e.clientX - d.x) / rect.width) * 100,
+            ),
+          ),
+          positionY: Math.max(
+            0,
+            Math.min(
+              100,
+              Number(d.params.positionY ?? 50) -
+                ((e.clientY - d.y) / rect.height) * 100,
+            ),
+          ),
+        },
+      });
+      setDirty(true);
+      return;
+    }
     if (d.type === "paint") {
       if (d.touchPending && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3)
         return;
@@ -1176,16 +1289,8 @@ export default function App() {
 
   async function exportPhoto(saveAs = false) {
     if (!photo) return;
-    const ext =
-        format === "image/png"
-          ? "png"
-          : format === "image/webp"
-            ? "webp"
-            : "jpg",
-      name =
-        (exportName.trim() || "my-photo").replace(/[\\/:*?"<>|]/g, "-") +
-        "." +
-        ext;
+    const name = exportFileName(exportName, format),
+      ext = name.split(".").pop()!;
     try {
       let handle:
         | Awaited<ReturnType<NonNullable<Window["showSaveFilePicker"]>>>
@@ -1199,24 +1304,26 @@ export default function App() {
         });
       setBusy("Making your photo ready…");
       await new Promise((r) => setTimeout(r, 40));
-      const max = exportSize === "original" ? 6000 : Number(exportSize),
-        result = resizeOutput(
-          await renderImage(photo.image, previewEdits, max, photo.rawSource),
-          max,
+      const native = await measureOutput(photo, previewEdits),
+        size = resizedDimensions(
+          native,
+          exportSize,
+          customWidth,
+          customHeight,
+          sizePercent,
         ),
-        plain = await toBlob(result, format, quality / 100),
-        blob = preserveMetadata
-          ? await withMetadata(
-              plain,
-              photo.metadata,
-              result.width,
-              result.height,
-            )
-          : plain;
-      if (blob.type !== format)
-        throw new Error(
-          "This browser does not support this export format. Try JPG or PNG.",
-        );
+        source = await renderForExport(photo, previewEdits, size),
+        result = await encodeOutput(source, {
+          size,
+          format,
+          quality,
+          metadata: preserveMetadata ? photo.metadata : undefined,
+          targetBytes: limitFileSize ? Number(targetKB) * 1024 : undefined,
+          dpi: exportIdDpi
+            ? (exportIdDpi * size.width) / native.width
+            : undefined,
+        }),
+        { blob } = result;
       if (handle) {
         const writable = await handle.createWritable();
         await writable.write(blob);
@@ -1251,27 +1358,30 @@ export default function App() {
         await new Promise((r) => setTimeout(r, 20));
         const p = await readPhoto(files[i]),
           edits = await prepareBatchEdits(p, previewEdits),
-          max = exportSize === "original" ? 6000 : Number(exportSize),
-          result = resizeOutput(
-            await renderImage(p.image, edits, max, p.rawSource),
-            max,
+          native = await measureOutput(p, edits),
+          size = resizedDimensions(
+            native,
+            exportSize,
+            customWidth,
+            customHeight,
+            sizePercent,
           ),
-          plain = await toBlob(result, format, quality / 100),
-          blob = preserveMetadata
-            ? await withMetadata(plain, p.metadata, result.width, result.height)
-            : plain;
-        if (blob.type !== format)
-          throw new Error(
-            "This export format is not supported by your browser.",
-          );
-        const ext =
-          format === "image/png"
-            ? "png"
-            : format === "image/webp"
-              ? "webp"
-              : "jpg";
+          source = await renderForExport(p, edits, size),
+          { blob } = await encodeOutput(source, {
+            size,
+            format,
+            quality,
+            metadata: preserveMetadata ? p.metadata : undefined,
+            targetBytes: limitFileSize ? Number(targetKB) * 1024 : undefined,
+            dpi: exportIdDpi
+              ? (exportIdDpi * size.width) / native.width
+              : undefined,
+          });
         zip.file(
-          `${i + 1}-${p.name.replace(/\.[^.]+$/, "")}-still.${ext}`,
+          exportFileName(
+            `${i + 1}-${p.name.replace(/\.[^.]+$/, "")}-still`,
+            format,
+          ),
           blob,
         );
       }
@@ -1371,6 +1481,32 @@ export default function App() {
       const choice = await installPrompt.userChoice;
       if (choice.outcome === "accepted") setInstallPrompt(null);
     } else setDialog("help");
+  }
+  const exportIdEdit = [...previewEdits]
+      .reverse()
+      .find((edit) => edit.tool === "id-photo"),
+    exportIdDpi = exportIdEdit
+      ? idPhotoDimensions(exportIdEdit.params).dpi
+      : undefined;
+  let requestedOutput: { width: number; height: number } | undefined,
+    exportError = "";
+  try {
+    requestedOutput = resizedDimensions(
+      nativeOutput,
+      exportSize,
+      customWidth,
+      customHeight,
+      sizePercent,
+    );
+    if (
+      limitFileSize &&
+      (!Number.isFinite(Number(targetKB)) ||
+        Number(targetKB) < 1 ||
+        Number(targetKB) > 50000)
+    )
+      exportError = "Enter a file-size limit from 1 to 50,000 KB.";
+  } catch (error) {
+    exportError = errorText(error);
   }
   const fit = Math.min(
     (stageSize.width -
@@ -1721,6 +1857,41 @@ export default function App() {
                     aria-label={`Edited preview of ${photo.name}`}
                     data-testid="photo-canvas"
                   />
+                  {active?.tool === "text" &&
+                    dirty &&
+                    !showOriginal &&
+                    !panMode && (
+                      <TextTransform
+                        params={active.params}
+                        width={outputSize.width}
+                        height={outputSize.height}
+                        zoom={zoom}
+                        onChange={(patch) => {
+                          setActive((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  params: { ...previous.params, ...patch },
+                                }
+                              : previous,
+                          );
+                          setDirty(true);
+                        }}
+                      />
+                    )}
+                  {active?.tool === "id-photo" &&
+                    !!active.params.guide &&
+                    !showOriginal && (
+                      <svg
+                        className="id-photo-guide"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-label="ID photo framing guide"
+                      >
+                        <ellipse cx="50" cy="40" rx="28" ry="29" />
+                        <path d="M12 41H88M50 5V95M12 83H88" />
+                      </svg>
+                    )}
                   {showMask && active?.mask && !showOriginal && (
                     <div
                       className="selection-overlay"
@@ -1796,7 +1967,11 @@ export default function App() {
               )}
               {touchLayout && zoom === 1 && !focusPreview && (
                 <span className="touch-gesture-hint">
-                  Pinch to zoom · two fingers to move
+                  {active?.tool === "text" && dirty
+                    ? "Drag text to move · use the handle to rotate"
+                    : active?.tool === "id-photo"
+                      ? "Drag to frame · pinch to inspect"
+                      : "Pinch to zoom · two fingers to move"}
                 </span>
               )}
             </div>
@@ -1895,7 +2070,7 @@ export default function App() {
                   aria-pressed={chosenLook === look.id}
                 >
                   <div className="look-image">
-                    <img src={thumb} alt="" style={{ filter: look.filter }} />
+                    <img src={lookThumbnails[look.id] || thumb} alt="" />
                     {chosenLook === look.id && (
                       <span className="look-check">
                         <Check size={12} strokeWidth={3} />
@@ -2362,31 +2537,83 @@ export default function App() {
                   key={f.value}
                   className={format === f.value ? "selected" : ""}
                   aria-pressed={format === f.value}
+                  disabled={!supportedFormats.includes(f.value)}
                   onClick={() => setFormat(f.value)}
                 >
                   <strong>{f.name}</strong>
-                  <span>{f.hint}</span>
+                  <span>
+                    {supportedFormats.includes(f.value)
+                      ? f.hint
+                      : "Unavailable here"}
+                  </span>
                   {format === f.value && <Check size={13} />}
                 </button>
               ))}
             </div>
           </div>
-          <div className="export-field">
-            <label className="field-label" htmlFor="export-size">
-              Image size
-            </label>
-            <select
-              id="export-size"
-              value={exportSize}
-              onChange={(e) => setExportSize(e.target.value)}
-            >
-              <option value="original">
-                Full working resolution · up to 6000 px
-              </option>
-              <option value="2048">Large · 2048 px</option>
-              <option value="1080">Social · 1080 px</option>
-            </select>
-          </div>
+          <p className="export-conversion">
+            {photo?.name.split(".").pop()?.toUpperCase() || "Photo"} →{" "}
+            {format === "image/png"
+              ? "PNG"
+              : format === "image/webp"
+                ? "WebP"
+                : "JPG"}{" "}
+            · save a new copy
+          </p>
+          <ExportSizing
+            size={nativeOutput}
+            mode={exportSize}
+            setMode={setExportSize}
+            width={customWidth}
+            height={customHeight}
+            setWidth={(value) => {
+              setCustomWidth(value);
+              setCustomHeight(
+                value && Number(value) > 0
+                  ? String(
+                      Math.max(
+                        1,
+                        Math.round(
+                          (Number(value) * nativeOutput.height) /
+                            nativeOutput.width,
+                        ),
+                      ),
+                    )
+                  : "",
+              );
+            }}
+            setHeight={(value) => {
+              setCustomHeight(value);
+              setCustomWidth(
+                value && Number(value) > 0
+                  ? String(
+                      Math.max(
+                        1,
+                        Math.round(
+                          (Number(value) * nativeOutput.width) /
+                            nativeOutput.height,
+                        ),
+                      ),
+                    )
+                  : "",
+              );
+            }}
+            percent={sizePercent}
+            setPercent={setSizePercent}
+            limit={limitFileSize}
+            setLimit={setLimitFileSize}
+            targetKB={targetKB}
+            setTargetKB={setTargetKB}
+            idPhoto={!!exportIdDpi}
+          />
+          <button
+            className="id-photo-shortcut secondary-button full"
+            onClick={() =>
+              selectTool(tools.find((tool) => tool.id === "id-photo")!)
+            }
+          >
+            <FileImage size={16} /> Choose an ID photo size
+          </button>
           {format !== "image/png" && (
             <Slider
               control={{
@@ -2400,6 +2627,17 @@ export default function App() {
               onChange={setQuality}
             />
           )}
+          <div className="export-output" aria-live="polite">
+            <strong>{exportFileName(exportName, format)}</strong>
+            <span>
+              {measuringExport
+                ? "Checking dimensions…"
+                : requestedOutput
+                  ? `${requestedOutput.width} × ${requestedOutput.height} px${exportIdDpi ? ` · ${Math.round((exportIdDpi * requestedOutput.width) / nativeOutput.width)} dpi` : ""}${limitFileSize ? ` · at most ${targetKB} KB` : ""}`
+                  : "Choose valid dimensions"}
+            </span>
+            {exportError && <p role="alert">{exportError}</p>}
+          </div>
           <label className="metadata-option">
             <input
               type="checkbox"
@@ -2421,7 +2659,7 @@ export default function App() {
           <div className="export-actions">
             <button
               className="primary-button full"
-              disabled={!!busy}
+              disabled={!!busy || measuringExport || !!exportError}
               onClick={() => void exportPhoto()}
             >
               <Download size={17} /> Download photo <ArrowUpRight size={16} />
@@ -2430,7 +2668,7 @@ export default function App() {
               <button
                 className="secondary-button full"
                 onClick={() => void exportPhoto(true)}
-                disabled={!!busy}
+                disabled={!!busy || measuringExport || !!exportError}
               >
                 <Save size={15} /> Save as…
               </button>
@@ -2514,7 +2752,7 @@ export default function App() {
                 }}
               >
                 <div>
-                  <img src={thumb} style={{ filter: look.filter }} alt="" />
+                  <img src={lookThumbnails[look.id] || thumb} alt="" />
                   {chosenLook === look.id && (
                     <span>
                       <Check size={15} />

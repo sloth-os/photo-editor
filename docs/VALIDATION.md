@@ -5,14 +5,17 @@ Validated in the supplied workspace on November 10, 2026 (Pacific time).
 | Check                                | Result                                                                                                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript and Vite production build | Passed, including worker bundles and checksum-verified model assets                                                                                                                         |
-| Unit tests                           | 33 passed: color/LUT math, content-aware fill, dehaze, metadata, native QR, recovery, collage layout/order, skin/cutout masks and malformed imports                                         |
+| Unit tests                           | 40 passed: color/LUT math, portable Looks/blur, resize/filename math, print density, ID dimensions, metadata, content-aware fill, recovery and malformed imports                            |
 | Community API integration tests      | 11 passed: accounts/session invalidation, ownership, likes/comments, persistence, search, idempotency, CORS, request/body limits and render-data validation                                 |
-| Chromium browser suite               | 40 passed, covering actual image edits across all 41 tools and the advanced workflows below                                                                                                 |
+| Chromium browser suite               | 46 passed, covering actual image edits across all 42 tools and the advanced workflows below                                                                                                 |
+| iPhone WebKit suite                  | 4 passed: every starter Look and rendered thumbnail, skin smoothing fallback, format conversion/resize, ID dimensions/density and on-image text rotation                                    |
 | Offline intelligence                 | Networking disabled before reload; actual face landmarks, projected pose, subject selection and learned depth completed successfully                                                        |
 | Content-aware operations             | Healing changes verified; smart expansion fills new pixels and undo restores the original                                                                                                   |
 | RAW                                  | Synthetic Bayer DNG decoded as 16-bit linear data; exposure changes pixels; original RAW bytes and edited result survive reload. A real 30.3 MB Sony ARW was also opened locally            |
 | Camera                               | Deterministic media streams verify front/back constraints, physical lens choice, old-track cleanup, single-camera fallback, mirrored preview/capture and editable Looks                     |
-| Text rotation / flip / mirror        | Pixel bounds verify 90° text rotation; arbitrary slider and recovery checked; colored quadrant pixels move to the expected corners under horizontal/vertical flips and undo                 |
+| Text rotation / flip / mirror        | Actual touch input rotates text 90° with the on-image handle; export/undo checked; arbitrary slider/recovery and corner-pixel flip/mirror checks also pass                                  |
+| Format / resize / compression        | Real JPG→PNG conversion, corrected filename extension, custom dimensions, percentage reduction, crop-before-resize geometry, and actual JPG/PNG byte limits verified                        |
+| ID photos                            | All eight preset pixel sizes verified; 300/600 dpi, drag framing, PNG pHYs and JPEG EXIF density checked on downloaded files; camera tags absent when preservation is off                   |
 | Collage / stitching                  | Actual grid pixels, both strip directions, unequal source ratios, order changes, removal, source recovery and mobile canvas visibility verified                                             |
 | Stickers / overlays                  | Built-in vector stickers render offline; imported image transparency preserves underlying pixels; positioning, rotation, independent stack layers and undo verified                         |
 | Background removal                   | Actual learned cutout after offline reload; transparent/color/photo backgrounds, edge softness, alpha retained through mirroring and actual PNG download, plus saved recovery               |
@@ -28,7 +31,7 @@ Validated in the supplied workspace on November 10, 2026 (Pacific time).
 | Production dependency audit          | Zero vulnerabilities reported                                                                                                                                                               |
 | Formatting                           | Prettier check passed                                                                                                                                                                       |
 
-The browser camera test uses a synthetic stream; real device permission/lens behavior still needs device testing. Actual OS PWA registration, a live GitHub Pages deployment, and a hosted public community service were not performed. Container instructions are supplied; API tests run the Node service directly. Proprietary Google/Adobe output equivalence is not claimed; see [feature boundaries](FEATURES.md).
+The browser camera test uses a synthetic stream; real device permission/lens behavior still needs device testing. iPhone coverage uses Playwright WebKit with the iPhone 13 profile, not physical iPhone hardware. WebKit reproduced the old failure: `CanvasRenderingContext2D.filter` was undefined and assigning brightness left pixels unchanged. Its tests now exercise portable processing. The local WebKit run used official Debian libraries extracted into an ignored test directory; CI installs WebKit and dependencies normally. Actual OS PWA registration, a live GitHub Pages deployment, and a hosted public community service were not performed. Container instructions are supplied; API tests run the Node service directly. Proprietary Google/Adobe output equivalence is not claimed; see [feature boundaries](FEATURES.md).
 
 ## Screenshots
 
@@ -53,3 +56,9 @@ The browser camera test uses a synthetic stream; real device permission/lens beh
 ![Expanded touch preview](screenshots/touch-expanded-preview.png)
 
 ![Touch tablet editing](screenshots/touch-tablet.png)
+
+![Finger text rotation](screenshots/text-rotation-touch.png)
+
+![ID photo framing](screenshots/id-photo.png)
+
+![Rendered Look previews in iPhone WebKit](screenshots/iphone-webkit-looks.png)

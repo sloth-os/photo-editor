@@ -13,6 +13,10 @@ import { contentAware } from "./content-aware";
 import { warpFace, faceRegion } from "./face-mesh";
 import { recoverHaze } from "./dehaze";
 import { developRaw } from "./raw";
+import { applyLook } from "./look-renderer";
+import { idPhotoDimensions } from "./id-photo";
+import { textFont } from "./text";
+import { blurPixels } from "./blur";
 import {
   collageLayout,
   cutoutAlpha,
@@ -81,6 +85,12 @@ function pixels(
 function blurred(src: Canvas, r: number): Canvas {
   const out = copy(src),
     ctx = context(out);
+  if (typeof ctx.filter !== "string") {
+    const image = ctx.getImageData(0, 0, out.width, out.height);
+    blurPixels(image.data, out.width, out.height, r);
+    ctx.putImageData(image, 0, 0);
+    return out;
+  }
   ctx.filter = `blur(${r}px)`;
   ctx.drawImage(src, 0, 0);
   ctx.filter = "none";
@@ -218,10 +228,27 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
   if (tool === "look") {
     const look = looks.find((l) => l.id === p.look);
     if (!look || look.id === "original") return src;
-    const out = canvas(w, h),
-      ctx = context(out);
-    ctx.filter = look.filter;
-    ctx.drawImage(src, 0, 0);
+    const ctx = context(src),
+      image = ctx.getImageData(0, 0, w, h);
+    applyLook(image.data, look.filter);
+    ctx.putImageData(image, 0, 0);
+    return src;
+  }
+  if (tool === "id-photo") {
+    const size = idPhotoDimensions(p),
+      out = canvas(size.width, size.height),
+      ctx = context(out),
+      scale =
+        (Math.max(size.width / w, size.height / h) * n("zoom", 100)) / 100;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(
+      src,
+      ((out.width - w * scale) * n("positionX", 50)) / 100,
+      ((out.height - h * scale) * n("positionY", 50)) / 100,
+      w * scale,
+      h * scale,
+    );
     return out;
   }
   if (["tune", "white-balance", "raw"].includes(tool))
@@ -954,7 +981,7 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     ctx.globalAlpha = n("opacity", 100) / 100;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `${p.style === "bold" ? "700" : "400"} ${size}px ${p.font === "sans" ? '"DM Sans", sans-serif' : p.font === "mono" ? "monospace" : "Georgia, serif"}`;
+    ctx.font = textFont(p, size);
     ctx.fillStyle = String(p.color || "#fff");
     const lines = String(p.text || "")
       .split("\n")

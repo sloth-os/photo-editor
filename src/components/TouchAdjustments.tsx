@@ -8,6 +8,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Palette,
+  ContactRound,
 } from "lucide-react";
 import { type Edit, type Tool, visibleControls } from "../lib/catalog";
 import { ACCEPT } from "../lib/files";
@@ -41,7 +42,13 @@ export default function TouchAdjustments({
     p = edit.params;
   let action:
     { label: string; icon: typeof Upload; run: () => void } | undefined;
-  if (tool.id === "collage")
+  if (tool.id === "id-photo")
+    action = {
+      label: "Choose ID photo size",
+      icon: ContactRound,
+      run: onExpand,
+    };
+  else if (tool.id === "collage")
     action = {
       label: "Add photos",
       icon: Upload,

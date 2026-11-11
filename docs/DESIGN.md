@@ -83,3 +83,23 @@ Camera selection first requests an exact front/back camera, falls back on
 devices without facing constraints, and offers enumerated physical lenses after
 permission. Switching and closing stop previous tracks. Selfie mirroring is
 applied before Look rendering in both preview and the captured editable stack.
+
+## Safari rendering and output
+
+WebKit reproduces the original Look failure: `CanvasRenderingContext2D.filter`
+is undefined, and assigning brightness/contrast filters leaves image pixels
+unchanged. Starter Looks now use sRGB pixel operations on every browser, and
+their thumbnails are rendered by the same pipeline. A three-box separable blur
+provides a fallback for saved effects when native canvas filtering is absent.
+
+Text has a pointer-captured move box and rotation handle around its normalized
+center. The edit stores only position and angle, so overlays never enter the
+exported raster. The same controls support fingers, mice, and keyboard angles.
+
+Export measures the final stack geometry before choosing dimensions, then
+renders at the necessary scale and encodes the actual requested MIME type.
+Custom dimensions retain proportions. Byte limits binary-search lossy quality
+and optionally reduce pixels; print/ID output keeps the selected dimensions.
+ID presets set exact pixel sizes from millimeters and dpi. EXIF resolution,
+JPEG JFIF density, and PNG pHYs preserve physical print size independently of
+whether original camera metadata is included.

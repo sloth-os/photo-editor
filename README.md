@@ -1,6 +1,6 @@
 # Still
 
-A mobile-friendly, Snapseed-inspired photo studio with **41 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
+A mobile-friendly, Snapseed-inspired photo studio with **42 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
 
 ## Run and check
 
@@ -14,7 +14,7 @@ npm run dev
 ```sh
 npm test                     # pixel math, formats, metadata, and community API tests
 npm run build                # TypeScript, production build, offline precache
-npx playwright install chromium
+npx playwright install --with-deps chromium webkit
 npm run test:e2e             # actual production-browser workflows
 npm run preview              # installation/offline testing
 ```
@@ -25,6 +25,8 @@ Development intentionally does not register a service worker. Use production pre
 
 - Touch layouts prioritize an edge-to-edge photo, a compact single-adjustment dock, and 44 px controls. **More controls** opens the full inspector; **More photo** returns to the compact dock. Wide touch tablets use a side inspector. **Expand photo preview** hides the editor chrome for inspection without losing edits.
 - Pinch up to 8× and pan with two fingers in every tool. One finger still paints with Brush/Healing; **Pan photo** provides an explicit navigation mode. Pinching cancels the first contact's tentative brush stroke.
+- Text can be moved directly on the photo and rotated by dragging its round handle with a finger or mouse. Arrow keys on the handle rotate by 1°; Shift changes the step to 15°.
+- ID photos include eight common passport/ID sizes, editable framing, and 150/300/600 dpi output. JPG, PNG, and WebP carry print-resolution metadata; PNG also includes pHYs and JPG includes JFIF density. See [ID photo sizes](docs/ID_PHOTOS.md).
 - Tone, white balance with neutral-point sampling, arbitrary RGB/channel/luminance curves, HSL, grading, detail, and dark-channel dehaze.
 - Crop handles/ratios, straightening/flips/perspective, smart texture expansion, selective adjustments, local brushes, and content-aware healing or clone mode.
 - Dedicated horizontal mirror and vertical flip controls; collage grids and horizontal/vertical stitching with up to nine photos, editable order, spacing, fit, and canvas color.
@@ -37,8 +39,10 @@ Development intentionally does not register a service worker. Use production pre
 - **16-bit linear RAW development** before display conversion; original RAW bytes survive local recovery and later development changes.
 - Editable/removable stack entries, undo/redo, original comparison, and automatic project recovery in IndexedDB.
 - Ten starter Looks, six offline Discover Looks, saved recipes, JSON/QR/XMP sharing, ZIP packs, and supported native Snapseed QR operators.
+- Looks and their thumbnails share portable pixel processing, including on iPhone Safari. A separable blur fallback supports Safari effects without Canvas.filter.
 - Live camera preview with built-in or saved Looks; front/back selection, physical-lens picker, single-camera fallback, and consistent selfie mirroring. Capture retains an editable source and Look. Camera permission and device availability are browser-dependent.
 - JPG/PNG/WebP export with size/quality and optional EXIF preservation. GPS is included when present in supported source EXIF and preservation is selected. Batch export regenerates AI selections for each photo and downloads a ZIP.
+- Convert between supported formats, use custom pixel dimensions or a percentage, or set an actual KB limit. Proportions remain locked and regular resizing never enlarges the image. File limits adjust quality and, when needed, dimensions; ID-photo compression keeps dimensions fixed. The output summary shows the filename, pixels, and print resolution before saving.
 
 The app has its own algorithms and output. [Feature coverage](docs/FEATURES.md) identifies compatibility limits, including private Snapseed QR operators, Adobe-only profiles/settings, and single-image face reconstruction.
 

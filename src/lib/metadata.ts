@@ -115,14 +115,22 @@ export async function withMetadata(
   metadata: CameraMetadata | undefined,
   width: number,
   height: number,
+  dpi?: number,
 ): Promise<Blob> {
-  if (!metadata?.exif) return blob;
-  const tags = piexif.load(metadata.exif);
+  if (!metadata?.exif && !dpi) return blob;
+  const tags = metadata?.exif
+    ? piexif.load(metadata.exif)
+    : ({ "0th": {}, Exif: {} } as ReturnType<typeof piexif.load>);
   tags["0th"] ??= {};
   tags.Exif ??= {};
   tags["0th"][piexif.ImageIFD.Orientation] = 1;
   tags["0th"][piexif.ImageIFD.ImageWidth] = width;
   tags["0th"][piexif.ImageIFD.ImageLength] = height;
+  if (dpi) {
+    tags["0th"][piexif.ImageIFD.XResolution] = [Math.round(dpi * 1000), 1000];
+    tags["0th"][piexif.ImageIFD.YResolution] = [Math.round(dpi * 1000), 1000];
+    tags["0th"][piexif.ImageIFD.ResolutionUnit] = 2;
+  }
   tags.Exif[piexif.ExifIFD.PixelXDimension] = width;
   tags.Exif[piexif.ExifIFD.PixelYDimension] = height;
   tags.Exif[piexif.ExifIFD.ColorSpace] = 1;
@@ -197,6 +205,60 @@ export async function withMetadata(
       true,
     );
     return new Blob([header, ...chunks], { type: blob.type });
+  }
+  return blob;
+}
+
+/** Physical print density supplements EXIF for readers that use PNG pHYs or JPEG JFIF. */
+export async function withPrintDensity(blob: Blob, dpi: number): Promise<Blob> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (blob.type === "image/png") {
+    const density = new Uint8Array(9),
+      view = new DataView(density.buffer),
+      chunks: Uint8Array[] = [bytes.subarray(0, 33), pngChunk("pHYs", density)];
+    view.setUint32(0, Math.round(dpi / 0.0254));
+    view.setUint32(4, Math.round(dpi / 0.0254));
+    density[8] = 1;
+    chunks[1] = pngChunk("pHYs", density);
+    for (let offset = 33; offset + 12 <= bytes.length;) {
+      const length = new DataView(
+          bytes.buffer,
+          bytes.byteOffset + offset,
+          4,
+        ).getUint32(0),
+        end = offset + length + 12;
+      if (binary(bytes.subarray(offset + 4, offset + 8)) !== "pHYs")
+        chunks.push(bytes.subarray(offset, end));
+      offset = end;
+    }
+    return new Blob(chunks, { type: blob.type });
+  }
+  if (blob.type === "image/jpeg") {
+    const out = bytes.slice();
+    for (let offset = 2; offset + 16 <= out.length && out[offset] === 255;) {
+      const length = out[offset + 2] * 256 + out[offset + 3];
+      if (
+        out[offset + 1] === 224 &&
+        binary(out.subarray(offset + 4, offset + 9)) === "JFIF\0"
+      ) {
+        out[offset + 11] = 1;
+        const view = new DataView(out.buffer);
+        view.setUint16(offset + 12, Math.round(dpi));
+        view.setUint16(offset + 14, Math.round(dpi));
+        return new Blob([out], { type: blob.type });
+      }
+      if (length < 2 || out[offset + 1] === 218) break;
+      offset += length + 2;
+    }
+    const jfif = new Uint8Array([
+        255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0,
+      ]),
+      view = new DataView(jfif.buffer);
+    view.setUint16(12, Math.round(dpi));
+    view.setUint16(14, Math.round(dpi));
+    return new Blob([bytes.subarray(0, 2), jfif, bytes.subarray(2)], {
+      type: blob.type,
+    });
   }
   return blob;
 }

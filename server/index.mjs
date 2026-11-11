@@ -22,6 +22,7 @@ const toolIds = new Set([
   "crop",
   "rotate",
   "flip",
+  "id-photo",
   "collage",
   "sticker",
   "background",
