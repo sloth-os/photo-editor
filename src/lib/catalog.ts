@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { Mark } from "./annotations";
 import {
   SlidersHorizontal,
   Focus,
@@ -42,6 +43,10 @@ import {
   Scissors,
   Smile,
   ContactRound,
+  PencilRuler,
+  ShieldOff,
+  PaintBucket,
+  ScanText,
 } from "lucide-react";
 
 export type Params = Record<string, number | string>;
@@ -62,6 +67,7 @@ export type Edit = {
   depth?: string;
   faces?: { x: number; y: number; z: number }[][];
   mesh?: [number, number, number][];
+  marks?: Mark[];
 };
 export type Control = {
   key: string;
@@ -233,8 +239,60 @@ export const tools: Tool[] = [
     icon: Paintbrush,
     group: "Local adjustments",
     description: "Paint in your finishing touches.",
-    controls: [c("amount", "Strength", 30), c("size", "Brush size", 8, 1, 40)],
+    controls: [
+      c("amount", "Strength", 30),
+      c("size", "Brush size", 8, 1, 40),
+      c("opacity", "Opacity", 100, 5, 100),
+    ],
     hint: "Paint on the photo. Change the brush mode below.",
+  },
+  {
+    id: "draw",
+    name: "Draw & annotate",
+    icon: PencilRuler,
+    group: "Annotation",
+    description: "A few marks can say a lot.",
+    controls: [
+      c("size", "Stroke size", 1.5, 0.2, 15, 0.1),
+      c("opacity", "Opacity", 100, 5, 100),
+      c("bend", "Curve bend", 35),
+      c("fillOpacity", "Fill opacity", 35, 0, 100),
+    ],
+    hint: "Drag to draw, or tap to place a number. Select moves existing marks. Each stroke keeps its color and style; Undo works one mark at a time. Eraser affects this drawing layer.",
+  },
+  {
+    id: "privacy",
+    name: "Privacy & emphasis",
+    icon: ShieldOff,
+    group: "Annotation",
+    description: "Hide a detail. Point to what matters.",
+    controls: [
+      c("strength", "Effect strength", 55, 1, 100),
+      c("size", "Selection brush size", 8, 1, 40),
+      c("opacity", "Opacity", 100, 5, 100),
+    ],
+    hint: "Drag a rectangle, ellipse, or brush selection. Opaque redaction covers pixels in exported copies; your editable project keeps the original. Blur and pixelation are visual obscuring effects.",
+  },
+  {
+    id: "fill",
+    name: "Color fill",
+    icon: PaintBucket,
+    group: "Annotation",
+    description: "A color, right where you want it.",
+    controls: [
+      c("tolerance", "Color tolerance", 15, 0, 100),
+      c("opacity", "Opacity", 100, 0, 100),
+    ],
+    hint: "Tap a connected area or matching color to fill it. You can also fill the whole image, clear an area to transparency, or fill shapes in Draw & annotate.",
+  },
+  {
+    id: "ocr",
+    name: "Extract text (OCR)",
+    icon: ScanText,
+    group: "Utilities",
+    description: "Read the words in your image, on this device.",
+    controls: [],
+    hint: "English, simplified/traditional Chinese, Japanese, Korean, Spanish, French, German, Arabic and Hindi. Recognize the whole image or a cropped region, copy, save, or add the text to your photo.",
   },
   {
     id: "healing",
@@ -623,6 +681,30 @@ export function visibleControls(tool: Tool, edit: Edit) {
       !(
         edit.faces?.length &&
         ["centerX", "centerY", "radius"].includes(control.key)
+      ) &&
+      !(
+        tool.id === "brush" &&
+        (control.key === "opacity"
+          ? edit.params.mode !== "paint"
+          : control.key === "amount" && edit.params.mode === "paint")
+      ) &&
+      !(
+        tool.id === "draw" &&
+        ((control.key === "bend" && edit.params.drawMode !== "curve") ||
+          (control.key === "fillOpacity" && !edit.params.filled))
+      ) &&
+      !(
+        tool.id === "privacy" &&
+        ((control.key === "size" && edit.params.region !== "brush") ||
+          (control.key === "strength" &&
+            ["redact", "highlight"].includes(String(edit.params.effect))) ||
+          (control.key === "opacity" &&
+            ["redact", "spotlight"].includes(String(edit.params.effect))))
+      ) &&
+      !(
+        tool.id === "fill" &&
+        ((control.key === "tolerance" && edit.params.scope === "canvas") ||
+          (control.key === "opacity" && edit.params.fillMode === "clear"))
       ),
   );
 }
@@ -635,6 +717,29 @@ export function defaults(id: string): Params {
     ]),
   );
   if (id === "curves") params.channel = "rgb";
+  if (["draw", "brush"].includes(id))
+    Object.assign(params, {
+      color: "#ef6351",
+      brush: "round",
+      drawMode: "pen",
+      nextNumber: 1,
+      filled: 0,
+      fillColor: "#ffe48a",
+      fillOpacity: 35,
+      bend: 35,
+    });
+  if (id === "privacy")
+    Object.assign(params, {
+      effect: "blur",
+      region: "rectangle",
+      color: "#111111",
+    });
+  if (id === "fill")
+    Object.assign(params, {
+      color: "#ef6351",
+      scope: "connected",
+      fillMode: "color",
+    });
   if (id === "rotate") Object.assign(params, { turns: 0, flipX: 0, flipY: 0 });
   if (id === "flip") Object.assign(params, { flipX: 0, flipY: 0 });
   if (id === "id-photo")

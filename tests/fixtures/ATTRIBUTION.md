@@ -11,3 +11,9 @@ https://scikit-image.org/docs/stable/api/skimage.data.html#skimage.data.astronau
 from https://github.com/rhys-fernandes/Django-Project/blob/master/media/1/shack_qr.jpeg
 It is used to verify protobuf decoding and preservation of unsupported operators;
 no photographic preview from that repository is included.
+
+`ocr-english.png`, `ocr-chinese.png`, and `ocr-japanese.png` are synthetic text
+fixtures rendered for this project. Chinese/Japanese glyphs use Noto Sans CJK JP
+(SIL Open Font License 1.1), from
+https://github.com/notofonts/noto-cjk/tree/main/Sans/OTF/Japanese .
+The fixture text is original test content; font files are not embedded in the app.

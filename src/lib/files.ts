@@ -5,6 +5,7 @@ import { readMetadata, type CameraMetadata } from "./metadata";
 import { canvas, fitDimensions, loadImage, toBlob } from "./engine";
 import type { Edit, Params } from "./catalog";
 import { defaults, tools, looks } from "./catalog";
+import { validateMarks } from "./annotations";
 import { parseCube } from "./color";
 
 export const ACCEPT =
@@ -116,7 +117,10 @@ export function validateRecipe(value: unknown): Recipe {
     throw new Error(
       "This look is not supported. Use a Still .json look file with up to 200 adjustments.",
     );
-  const ids = new Set([...tools.map((t) => t.id), "look"]);
+  const ids = new Set([
+    ...tools.filter((t) => t.id !== "ocr").map((t) => t.id),
+    "look",
+  ]);
   const edits = r.edits.map((edit) => {
     if (
       !edit ||
@@ -129,6 +133,7 @@ export function validateRecipe(value: unknown): Recipe {
     const d = defaults(edit.tool),
       tool = tools.find((t) => t.id === edit.tool),
       p: Params = { ...d };
+    if (edit.marks !== undefined) validateMarks(edit.marks);
     for (const [key, value] of Object.entries(edit.params)) {
       if (typeof value === "number" && Number.isFinite(value)) {
         const control = tool?.controls.find((c) => c.key === key);

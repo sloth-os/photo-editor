@@ -1,6 +1,6 @@
 # Still
 
-A mobile-friendly, Snapseed-inspired photo studio with **42 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
+A mobile-friendly, Snapseed-inspired photo studio with **46 tools**, non-destructive editing, drawing, local OCR/AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
 
 ## Run and check
 
@@ -19,7 +19,7 @@ npm run test:e2e             # actual production-browser workflows
 npm run preview              # installation/offline testing
 ```
 
-Development intentionally does not register a service worker. Use production preview to test offline behavior. The first online visit caches approximately **61 MB**, including the RAW decoder, learned models, and their runtimes. Once installation completes, editing, inference, capture effects, imports, and exports work without a server connection.
+Development intentionally does not register a service worker. Use production preview to test offline behavior. The first online visit caches approximately **90 MB**, including the RAW decoder, learned/OCR models, and their runtimes. Once installation completes, editing, OCR, inference, capture effects, imports, and exports work without a server connection.
 
 ## Editing
 
@@ -29,6 +29,10 @@ Development intentionally does not register a service worker. Use production pre
 - ID photos include eight common passport/ID sizes, editable framing, and 150/300/600 dpi output. JPG, PNG, and WebP carry print-resolution metadata; PNG also includes pHYs and JPG includes JFIF density. See [ID photo sizes](docs/ID_PHOTOS.md).
 - Tone, white balance with neutral-point sampling, arbitrary RGB/channel/luminance curves, HSL, grading, detail, and dark-channel dehaze.
 - Crop handles/ratios, straightening/flips/perspective, smart texture expansion, selective adjustments, local brushes, and content-aware healing or clone mode.
+- Color drawing with round/square pens, marker, airbrush, calligraphy, crayon, and a layer eraser. Each stroke retains its own color, width, and opacity; Brush also offers a **Paint color** mode.
+- Annotations include multiply highlighter, arrows, lines/curves, filled or outlined shapes, dashed strokes, and automatic step numbering. Select/move, per-mark undo/redo, editable layers, and recovery work on touchscreens.
+- Local blur, pixelation, opaque redaction, highlights, and multiple spotlights; rectangle, ellipse, and brush selections. Bucket fill supports connected areas, matching colors, the entire image, and clearing to transparency.
+- Offline printed-text OCR for English, simplified/traditional Chinese, Japanese, Korean, Spanish, French, German, Arabic, and Hindi. Crop a region, review/edit results, copy, save TXT, or add a text layer. See [drawing, privacy, fill, and OCR](docs/ANNOTATIONS_OCR.md).
 - Dedicated horizontal mirror and vertical flip controls; collage grids and horizontal/vertical stitching with up to nine photos, editable order, spacing, fit, and canvas color.
 - HDR, glow, tonal contrast, drama, vintage, film responses, grain, retrolux, grunge, monochrome/noir, motion blur, bloom, and halation.
 - Local subject/background segmentation for Selective, Brush, Motion Blur, and Lens Blur. Learned scene depth for depth-aware focus.

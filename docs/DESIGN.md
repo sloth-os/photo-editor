@@ -9,6 +9,7 @@ Reference review: November 10, 2026.
 - [MDN: Offline and background operation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Offline_and_background_operation): service-worker lifecycle and cache-first application assets.
 - [LibRaw-Wasm](https://github.com/ybouane/LibRaw-Wasm): locally bundled worker/decoder, camera white balance, sRGB output, limits, and decoder disposal.
 - [GitHub: Deploy a custom workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages): Pages permissions, artifact upload, and deployment environments.
+- [Tesseract.js](https://github.com/naptha/tesseract.js) and [tessdata_fast 4.1.0](https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0): browser LSTM recognition, local worker/core/language paths, progress/cancellation, and Apache-licensed fast language models.
 
 ## Interaction model
 
@@ -103,3 +104,29 @@ and optionally reduce pixels; print/ID output keeps the selected dimensions.
 ID presets set exact pixel sizes from millimeters and dpi. EXIF resolution,
 JPEG JFIF density, and PNG pHYs preserve physical print size independently of
 whether original camera metadata is included.
+
+## Drawing, privacy, fill, and text recognition
+
+Drawing stores normalized marks with immutable style snapshots, so changing the
+active color or brush affects the next stroke. Paths, quadratic curves, arrows,
+filled shapes, and numbered steps replay through the same renderer for preview,
+recovery, recipes, and export. Textured crayon uses a stable per-mark seed.
+Highlighter uses multiply compositing to preserve dark lettering. A layer-local
+eraser removes ink without damaging the source. Per-mark history supports undo,
+redo, clear, delete, and moving a selection. Two-finger gestures roll back the
+first tentative mark and its number counter before navigating the photo.
+
+Privacy selections use a rectangle, ellipse, or painted mask. Blur processes a
+padded region with the portable pixel blur; pixelation downsamples and enlarges
+without smoothing. Redaction forces opaque coverage. Spotlight unions multiple
+selected regions before dimming their surroundings. Bucket fill scans connected
+horizontal runs, compares premultiplied RGBA within tolerance, and supports
+disconnected matching colors, entire-canvas fills, and true transparent clearing.
+
+OCR snapshots the visible edit stack, including privacy effects, at up to
+3200 px/8 MP. Tesseract runs in a dedicated local worker with ten checksum-pinned
+fast models and no remote language downloads. Jobs are serialized; cancellation
+prevents stale results and releases the worker. A selected crop, editable text,
+optional word boxes, copy/TXT output, and a text-layer action fit into a responsive
+dialog. The OCR UI and drawing renderer load on demand and are precached for
+offline use.

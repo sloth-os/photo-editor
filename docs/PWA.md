@@ -4,11 +4,13 @@ Production builds generate a relative manifest and Workbox service worker. HTTPS
 
 ## Offline assets and data
 
-The production precache includes HTML/styles/scripts, lazy QR/ZIP code, local font/sample/icons/licenses, the LibRaw decoder, MediaPipe runtime and models, and ONNX Runtime/Depth Anything V2 Small. The initial cache is about 61 MB. Model files are part of the repository and checked against pinned SHA-256 values during preparation. Inference fetches no remote model or image API.
+The production precache includes HTML/styles/scripts, lazy QR/ZIP/drawing/OCR code, local font/sample/icons/licenses, the LibRaw decoder, MediaPipe runtime and models, ONNX Runtime/Depth Anything V2 Small, and Tesseract's LSTM/SIMD runtimes and ten compressed OCR models. The initial cache is about 90 MB. Model files are part of the repository and checked against pinned SHA-256 values during preparation. Inference and OCR fetch no remote model or image API.
 
 Original source Blobs, RAW bytes, edit stacks, collage/overlay images, embedded masks/depth/landmarks, saved Looks, and community caches/outbox are stored in IndexedDB. Saving is reported only after transaction completion. Clearing site data, private-mode restrictions, storage pressure, or browser eviction can remove this data; export important work.
 
 Collage/stitching, built-in vector stickers, imported overlays, text rotation, flip/mirror, skin retouching, and learned background removal all work offline. Cutouts retain alpha through transforms and PNG/WebP export. Camera selection requires a browser-exposed camera and permission, but no network service.
+
+Drawing, privacy effects, bucket fill, and text recognition also work offline. Stroke styles and normalized geometry are stored with the edit stack. OCR loads its worker, core, and language data from the deployed base path; models are precached even before their first scan. Recognition runs in one disposable worker at a time, supports cancellation, and keeps the result in the dialog until the user copies, downloads, or adds it to the image.
 
 New versions precache separately and wait for the update prompt. Updates are accepted after the current local-save status reports success; recovery reopens the saved project. Development mode intentionally does not register a service worker.
 
@@ -26,7 +28,7 @@ OS association requires an installed PWA, supported desktop Chromium, and browse
 
 ## Validation and remaining manual checks
 
-Production-browser tests disable networking before reloading and then run actual face detection, subject segmentation, learned depth inference, edits, project recovery, and export. Other checks simulate an OS launch queue, validate manifest associations, exercise incoming images, and verify mobile geometry without horizontal overflow.
+Production-browser tests disable networking before reloading and then run actual face detection, subject segmentation, learned depth inference, OCR, edits, project recovery, and export. Other checks simulate an OS launch queue, validate manifest associations, exercise incoming images, and verify mobile geometry without horizontal overflow.
 
 A simulated launch does not verify OS registration. On each target desktop, install over HTTPS, choose **Open with Still**, accept the browser permission, and try both an existing client and multiple files. Then disconnect and edit/export. After deploying an update, verify the prompt and restored project. These manual browser/OS checks are not performed automatically.
 

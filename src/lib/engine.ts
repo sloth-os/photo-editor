@@ -188,6 +188,14 @@ export async function renderImage(
   maxDimension = 1400,
   rawSource?: Blob,
 ): Promise<Canvas> {
+  if (
+    edits.some(
+      (edit) =>
+        (edit.tool === "text" && edit.params.font === "sans") ||
+        edit.marks?.some((mark) => mark.kind === "number"),
+    )
+  )
+    await document.fonts?.ready;
   if (rawSource) {
     const rawEdits = edits.filter((e) => e.tool === "raw");
     if (rawEdits.length) {
@@ -233,6 +241,27 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     applyLook(image.data, look.filter);
     ctx.putImageData(image, 0, 0);
     return src;
+  }
+  if (["draw", "privacy", "fill"].includes(tool))
+    return (await import("./annotation-renderer")).renderAnnotations(
+      src,
+      edit.marks || [],
+    );
+  if (tool === "brush" && edit.marks?.length) {
+    const base = edit.points?.length
+      ? await applyEdit(src, {
+          ...edit,
+          marks: undefined,
+          params: {
+            ...p,
+            mode: p.mode === "paint" ? p.adjustmentMode || "exposure" : p.mode,
+          },
+        })
+      : src;
+    return (await import("./annotation-renderer")).renderAnnotations(
+      base,
+      edit.marks,
+    );
   }
   if (tool === "id-photo") {
     const size = idPhotoDimensions(p),

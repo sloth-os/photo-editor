@@ -1,5 +1,6 @@
 import CurveGraph from "./CurveGraph";
 import CompositionControls from "./CompositionControls";
+import DrawingControls from "./DrawingControls";
 import { idPhotoDimensions, idPhotoSizes } from "../lib/id-photo";
 import {
   Upload,
@@ -33,6 +34,8 @@ type Props = {
   onToggleMask: () => void;
   onClearSelection: () => void;
   onClearFace: () => void;
+  onMarkAction: (action: "undo" | "clear" | "delete") => void;
+  selectedMark: boolean;
 };
 
 function Choices({
@@ -81,6 +84,8 @@ export default function ToolControls({
   onToggleMask,
   onClearSelection,
   onClearFace,
+  onMarkAction,
+  selectedMark,
 }: Props) {
   const { params: p } = edit,
     overlayInput = useRef<HTMLInputElement>(null),
@@ -100,6 +105,15 @@ export default function ToolControls({
   );
   return (
     <>
+      {(["draw", "privacy", "fill"].includes(tool.id) ||
+        (tool.id === "brush" && p.mode === "paint")) && (
+        <DrawingControls
+          edit={edit}
+          setParam={setParam}
+          onAction={onMarkAction}
+          selected={selectedMark}
+        />
+      )}
       {tool.id === "id-photo" && (
         <div className="id-photo-controls">
           <label className="field-label" htmlFor="id-photo-size">
@@ -153,39 +167,42 @@ export default function ToolControls({
           onAnalyze={() => onAnalyze("subject", "subject")}
         />
       )}
-      {["selective", "brush", "lens-blur", "motion"].includes(tool.id) && (
-        <div className="intelligence-controls">
-          <span className="field-label">Smart selection · on-device</span>
-          <div className="choice-row">
-            <button
-              className={edit.mask && p.mask === "subject" ? "selected" : ""}
-              onClick={() => onAnalyze("subject", "subject")}
-            >
-              <Wand size={13} /> Subject
-            </button>
-            <button
-              className={edit.mask && p.mask === "background" ? "selected" : ""}
-              onClick={() => onAnalyze("subject", "background")}
-            >
-              <Layers size={13} /> Background
-            </button>
-          </div>
-          {edit.mask && (
-            <div className="selection-actions">
+      {["selective", "brush", "lens-blur", "motion"].includes(tool.id) &&
+        !(tool.id === "brush" && p.mode === "paint") && (
+          <div className="intelligence-controls">
+            <span className="field-label">Smart selection · on-device</span>
+            <div className="choice-row">
               <button
-                className="text-button"
-                aria-pressed={showMask}
-                onClick={onToggleMask}
+                className={edit.mask && p.mask === "subject" ? "selected" : ""}
+                onClick={() => onAnalyze("subject", "subject")}
               >
-                {showMask ? "Hide selection" : "Preview selection"}
+                <Wand size={13} /> Subject
               </button>
-              <button className="text-button" onClick={onClearSelection}>
-                Clear selection
+              <button
+                className={
+                  edit.mask && p.mask === "background" ? "selected" : ""
+                }
+                onClick={() => onAnalyze("subject", "background")}
+              >
+                <Layers size={13} /> Background
               </button>
             </div>
-          )}
-        </div>
-      )}
+            {edit.mask && (
+              <div className="selection-actions">
+                <button
+                  className="text-button"
+                  aria-pressed={showMask}
+                  onClick={onToggleMask}
+                >
+                  {showMask ? "Hide selection" : "Preview selection"}
+                </button>
+                <button className="text-button" onClick={onClearSelection}>
+                  Clear selection
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       {tool.id === "lens-blur" && (
         <button
           className="secondary-button full"
@@ -384,9 +401,9 @@ export default function ToolControls({
       {tool.id === "brush" &&
         choose(
           "mode",
-          ["exposure", "dodge", "saturation", "temperature"],
+          ["exposure", "dodge", "saturation", "temperature", "paint"],
           "Brush mode",
-          ["Exposure", "Dodge", "Saturation", "Warmth"],
+          ["Exposure", "Dodge", "Saturation", "Warmth", "Paint color"],
         )}
       {tool.id === "double" && (
         <>

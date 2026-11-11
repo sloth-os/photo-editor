@@ -11,6 +11,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseCube } from "../src/lib/color.ts";
+import { validateMarks } from "../src/lib/annotations.ts";
 const scrypt = promisify(scryptCallback),
   hash = (value) => createHash("sha256").update(value).digest("hex");
 const toolIds = new Set([
@@ -31,6 +32,9 @@ const toolIds = new Set([
   "expand",
   "selective",
   "brush",
+  "draw",
+  "privacy",
+  "fill",
   "healing",
   "hdr",
   "glamour",
@@ -84,6 +88,13 @@ function validateRecipe(recipe) {
       Array.isArray(edit.params)
     )
       throw new HttpError(400, "Invalid adjustment in look.");
+    if (edit.marks !== undefined) {
+      try {
+        validateMarks(edit.marks);
+      } catch {
+        throw new HttpError(400, "Invalid drawing marks.");
+      }
+    }
     for (const [key, value] of Object.entries(edit.params)) {
       if (
         ["__proto__", "constructor", "prototype"].includes(key) ||

@@ -297,6 +297,20 @@ test("malformed render data is rejected before it can poison the public feed", (
     const { token } = await register();
     for (const invalid of [
       { tool: "curves", params: { curveRGB: "bad-json" } },
+      {
+        tool: "draw",
+        params: {},
+        marks: [
+          {
+            id: "a",
+            kind: "pen",
+            color: "url(https://tracker.invalid)",
+            opacity: 1,
+            width: 0.01,
+            points: [{ x: 0.2, y: 0.2 }],
+          },
+        ],
+      },
       { tool: "lut", params: { cube: "LUT_3D_SIZE 4\n0 0 0" } },
       { tool: "lut", params: { lutPng: "https://tracker.invalid/image.png" } },
       {

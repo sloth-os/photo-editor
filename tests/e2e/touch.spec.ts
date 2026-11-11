@@ -283,6 +283,94 @@ test("two-finger zoom and pan never paint, while one-finger brush strokes remain
   await expect.poll(() => signature(page)).not.toBe(before);
 });
 
+test("touch numbering cancels a tentative mark on pinch and one finger draws in color", async ({
+  page,
+}) => {
+  await ready(page);
+  await image(page);
+  await choose(page, "Draw & annotate");
+  await page.getByRole("button", { name: "More controls", exact: true }).tap();
+  await page
+    .getByRole("group", { name: "Drawing tool", exact: true })
+    .getByRole("button", { name: "Number", exact: true })
+    .tap();
+  await page.getByRole("button", { name: "More photo", exact: true }).tap();
+  const before = await signature(page),
+    box = (await page.locator(".photo-wrap").boundingBox())!,
+    cx = box.x + box.width / 2,
+    cy = box.y + box.height / 2;
+  await touchSequence(page, [
+    [{ id: 1, x: cx - 30, y: cy }],
+    [
+      { id: 1, x: cx - 30, y: cy },
+      { id: 2, x: cx + 30, y: cy },
+    ],
+    [
+      { id: 1, x: cx - 60, y: cy },
+      { id: 2, x: cx + 60, y: cy },
+    ],
+    [],
+  ]);
+  await expect.poll(() => signature(page)).toBe(before);
+  await expect(
+    page.getByRole("button", { name: "Apply changes", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Fit photo to screen", exact: true })
+    .tap();
+  await page.getByRole("button", { name: "More controls", exact: true }).tap();
+  await expect(page.getByLabel("Next number", { exact: true })).toHaveValue(
+    "1",
+  );
+  await page
+    .getByRole("group", { name: "Drawing tool", exact: true })
+    .getByRole("button", { name: "Pen", exact: true })
+    .tap();
+  await page.getByRole("button", { name: "Blue paint", exact: true }).tap();
+  await page.getByRole("button", { name: "More photo", exact: true }).tap();
+  await touchSequence(page, [
+    [{ id: 1, x: cx - 60, y: cy }],
+    [{ id: 1, x: cx, y: cy }],
+    [{ id: 1, x: cx + 60, y: cy }],
+    [],
+  ]);
+  await expect.poll(() => signature(page)).not.toBe(before);
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("photo-canvas")
+        .evaluate((c: HTMLCanvasElement) => [
+          ...c.getContext("2d")!.getImageData(200, 200, 1, 1).data,
+        ]),
+    )
+    .toEqual([87, 155, 231, 255]);
+  const painted = await signature(page);
+  await page
+    .getByRole("button", { name: "Undo (Ctrl+Z)", exact: true })
+    .click();
+  await expect.poll(() => signature(page)).toBe(before);
+  await touchSequence(page, [
+    [{ id: 1, x: cx - 30, y: cy }],
+    [
+      { id: 1, x: cx - 30, y: cy },
+      { id: 2, x: cx + 30, y: cy },
+    ],
+    [
+      { id: 1, x: cx - 60, y: cy },
+      { id: 2, x: cx + 60, y: cy },
+    ],
+    [],
+  ]);
+  await expect.poll(() => signature(page)).toBe(before);
+  await page
+    .getByRole("button", { name: "Redo (Ctrl+Shift+Z)", exact: true })
+    .click();
+  await expect.poll(() => signature(page)).toBe(painted);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+});
+
 test("coarse-pointer tablets have large controls and adapt between side and bottom panels", async ({
   page,
 }) => {

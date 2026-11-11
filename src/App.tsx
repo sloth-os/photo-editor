@@ -4,6 +4,8 @@ import {
   useMemo,
   useRef,
   useState,
+  lazy,
+  Suspense,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
@@ -98,6 +100,14 @@ import {
 import ToolControls from "./components/ToolControls";
 import TouchAdjustments from "./components/TouchAdjustments";
 import TextTransform from "./components/TextTransform";
+import {
+  createMark,
+  hitMark,
+  markBounds,
+  usesMarks,
+  type Mark,
+  type MarkPoint,
+} from "./lib/annotations";
 import ExportSizing from "./components/ExportSizing";
 import {
   encodeOutput,
@@ -114,8 +124,10 @@ import CameraStudio from "./components/CameraStudio";
 import CommunityStudio from "./components/CommunityStudio";
 import { exportXmp } from "./lib/presets";
 import { exportSnapseed } from "./lib/snapseed";
+const OcrStudio = lazy(() => import("./components/OcrStudio"));
 
 type Snapshot = { edits: Edit[]; label: string };
+type MarkHistory = { editId: string; past: Mark[][]; future: Mark[][] };
 type Dialog =
   | "tools"
   | "export"
@@ -127,6 +139,7 @@ type Dialog =
   | "incoming"
   | "camera"
   | "community"
+  | "ocr"
   | null;
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -242,6 +255,8 @@ export default function App() {
     [qrUrl, setQrUrl] = useState("");
   const [showMask, setShowMask] = useState(false);
   const [lookLink, setLookLink] = useState("");
+  const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null),
+    [markHistory, setMarkHistory] = useState<MarkHistory | null>(null);
   const analysisToken = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null),
     stageRef = useRef<HTMLDivElement>(null),
@@ -255,7 +270,7 @@ export default function App() {
     toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     saveToken = useRef(0);
   const drag = useRef<{
-    type: "paint" | "pan" | "crop" | "id-photo";
+    type: "paint" | "pan" | "crop" | "id-photo" | "mark" | "mark-move";
     x: number;
     y: number;
     pan: { x: number; y: number };
@@ -264,6 +279,10 @@ export default function App() {
     touchPending?: boolean;
     startCount?: number;
     wasDirty?: boolean;
+    beforeMarks?: Mark[];
+    markId?: string;
+    points?: MarkPoint[];
+    beforeMarkHistory?: MarkHistory | null;
   } | null>(null);
   const touchPointers = useRef(new Map<number, { x: number; y: number }>()),
     pendingTap = useRef<{ x: number; y: number } | null>(null),
@@ -518,32 +537,35 @@ export default function App() {
     if (!photo) return;
     const token = ++renderToken.current;
     setRendering(true);
-    const timer = setTimeout(async () => {
-      try {
-        const display = showOriginal
-          ? []
-          : dirty && active?.tool === "crop"
-            ? previewEdits.filter((e) => e.id !== active.id)
-            : previewEdits;
-        const result = await renderImage(
-          photo.image,
-          display,
-          1400,
-          photo.rawSource,
-        );
-        if (renderToken.current !== token || !canvasRef.current) return;
-        const target = canvasRef.current;
-        target.width = result.width;
-        target.height = result.height;
-        target.getContext("2d")!.drawImage(result, 0, 0);
-        setOutputSize({ width: result.width, height: result.height });
-        setBins(histogram(result));
-      } catch (e) {
-        if (renderToken.current === token) notify(errorText(e));
-      } finally {
-        if (renderToken.current === token) setRendering(false);
-      }
-    }, 25);
+    const timer = setTimeout(
+      async () => {
+        try {
+          const display = showOriginal
+            ? []
+            : dirty && active?.tool === "crop"
+              ? previewEdits.filter((e) => e.id !== active.id)
+              : previewEdits;
+          const result = await renderImage(
+            photo.image,
+            display,
+            1400,
+            photo.rawSource,
+          );
+          if (renderToken.current !== token || !canvasRef.current) return;
+          const target = canvasRef.current;
+          target.width = result.width;
+          target.height = result.height;
+          target.getContext("2d")!.drawImage(result, 0, 0);
+          setOutputSize({ width: result.width, height: result.height });
+          setBins(histogram(result));
+        } catch (e) {
+          if (renderToken.current === token) notify(errorText(e));
+        } finally {
+          if (renderToken.current === token) setRendering(false);
+        }
+      },
+      active && usesMarks(active) ? 0 : 25,
+    );
     return () => clearTimeout(timer);
   }, [
     photo,
@@ -579,6 +601,8 @@ export default function App() {
   }, [photo, previewEdits, initialized]);
 
   function commit(edits: Edit[], label: string) {
+    setMarkHistory(null);
+    setSelectedMarkId(null);
     const next = [...history.slice(0, cursor + 1), { edits, label }];
     // Keep the original snapshot reachable when pruning old undo steps.
     if (next.length > 61) next.splice(1, next.length - 61);
@@ -590,10 +614,19 @@ export default function App() {
   function applyActive() {
     if (!dirty || !active) return;
     commit(previewEdits, `Applied ${tool.name}`);
-    setActive(freshEdit(active.tool));
+    setActive({
+      ...freshEdit(active.tool),
+      ...(usesMarks(active) ? { params: { ...active.params } } : {}),
+    });
     notify(`${tool.name} applied.`);
   }
   function selectTool(next: Tool) {
+    if (next.id === "ocr") {
+      setDialog("ocr");
+      return;
+    }
+    setMarkHistory(null);
+    setSelectedMarkId(null);
     if (dirty && active) commit(previewEdits, `Applied ${tool.name}`);
     setActive(freshEdit(next.id));
     setDirty(
@@ -613,6 +646,9 @@ export default function App() {
         "brush",
         "healing",
         "double",
+        "draw",
+        "privacy",
+        "fill",
         "lut",
       ].includes(next.id),
     );
@@ -729,21 +765,69 @@ export default function App() {
               ...(prev.tool === "crop" && key !== "ratio"
                 ? { ratio: "Free" }
                 : {}),
+              ...(prev.tool === "brush" && key === "mode" && value === "paint"
+                ? { adjustmentMode: prev.params.mode || "exposure" }
+                : {}),
               [key]: value,
             },
           }
         : prev,
     );
-    setDirty(true);
+    const stylingMarks =
+      active &&
+      (usesMarks(active) ||
+        (active.tool === "brush" && key === "mode" && value === "paint"));
+    if (!stylingMarks || (active?.points?.length && key === "mode"))
+      setDirty(true);
+    if (active?.tool === "brush" && key === "mode" && value === "paint")
+      setShowMask(false);
     setShowOriginal(false);
   }
   function resetActive() {
+    setMarkHistory(null);
+    setSelectedMarkId(null);
     setActive(freshEdit(tool.id));
     setDirty(false);
     setEditingId(null);
     notify("Adjustments reset. Your applied edits are kept.");
   }
   function undo() {
+    if (
+      active &&
+      markHistory?.editId === active.id &&
+      markHistory.past.length &&
+      usesMarks(active)
+    ) {
+      const previous = markHistory.past.at(-1)!;
+      setMarkHistory({
+        editId: active.id,
+        past: markHistory.past.slice(0, -1),
+        future: [...markHistory.future, active.marks || []],
+      });
+      const removed = [...(active.marks || [])]
+        .reverse()
+        .find(
+          (mark) =>
+            mark.kind === "number" &&
+            !previous.some((old) => old.id === mark.id),
+        );
+      setActive({
+        ...active,
+        marks: previous,
+        params: {
+          ...active.params,
+          ...(removed &&
+          Number(active.params.nextNumber) ===
+            Math.min(999, (removed.number || 1) + 1)
+            ? { nextNumber: removed.number || 1 }
+            : {}),
+        },
+      });
+      setDirty(!!editingId || !!previous.length || !!active.points?.length);
+      setSelectedMarkId(null);
+      setShowOriginal(false);
+      return;
+    }
     if (dirty) {
       resetActive();
       return;
@@ -757,6 +841,38 @@ export default function App() {
     }
   }
   function redo() {
+    if (
+      active &&
+      markHistory?.editId === active.id &&
+      markHistory.future.length
+    ) {
+      const next = markHistory.future.at(-1)!;
+      setMarkHistory({
+        editId: active.id,
+        past: [...markHistory.past, active.marks || []],
+        future: markHistory.future.slice(0, -1),
+      });
+      const added = [...next]
+        .reverse()
+        .find(
+          (mark) =>
+            mark.kind === "number" &&
+            !(active.marks || []).some((old) => old.id === mark.id),
+        );
+      setActive({
+        ...active,
+        marks: next,
+        params: {
+          ...active.params,
+          ...(added && Number(active.params.nextNumber) === added.number
+            ? { nextNumber: Math.min(999, (added.number || 1) + 1) }
+            : {}),
+        },
+      });
+      setDirty(true);
+      setShowOriginal(false);
+      return;
+    }
     if (cursor < history.length - 1) {
       setCursor(cursor + 1);
       setDirty(false);
@@ -903,6 +1019,39 @@ export default function App() {
       y: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
     };
   }
+  function rememberMarks(edit: Edit) {
+    setMarkHistory((history) => ({
+      editId: edit.id,
+      past: [
+        ...(history?.editId === edit.id ? history.past : []),
+        edit.marks || [],
+      ].slice(-60),
+      future: [],
+    }));
+  }
+  function markAction(action: "undo" | "clear" | "delete") {
+    if (!active?.marks?.length) return;
+    if (
+      action === "undo" &&
+      markHistory?.editId === active.id &&
+      markHistory.past.length
+    ) {
+      undo();
+      return;
+    }
+    rememberMarks(active);
+    setActive({
+      ...active,
+      marks:
+        action === "clear"
+          ? []
+          : action === "delete" && selectedMarkId
+            ? active.marks.filter((mark) => mark.id !== selectedMarkId)
+            : active.marks.slice(0, -1),
+    });
+    setSelectedMarkId(null);
+    setDirty(true);
+  }
   function paint(e: ReactPointerEvent<HTMLDivElement>) {
     if (!active) return;
     const pos = point(e),
@@ -933,6 +1082,71 @@ export default function App() {
     }
     if (showOriginal) return;
     const corner = (e.target as HTMLElement).dataset.corner;
+    if (usesMarks(active)) {
+      const pos = {
+        ...point(e),
+        pressure: e.pointerType === "pen" ? Math.max(0.1, e.pressure) : 1,
+      };
+      if (active.tool === "draw" && active.params.drawMode === "select") {
+        const selected = hitMark(
+          active.marks || [],
+          pos,
+          outputSize.width,
+          outputSize.height,
+        );
+        setSelectedMarkId(selected?.id || null);
+        if (!selected) return;
+        rememberMarks(active);
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = {
+          type: "mark-move",
+          x: e.clientX,
+          y: e.clientY,
+          pan,
+          beforeMarks: active.marks || [],
+          beforeMarkHistory: markHistory,
+          markId: selected.id,
+          points: selected.points,
+          wasDirty: dirty,
+        };
+        return;
+      }
+      if (
+        (active.marks?.length || 0) >= 1000 ||
+        (active.marks || []).reduce((n, mark) => n + mark.points.length, 0) >=
+          49000
+      ) {
+        notify("This layer is full. Apply it and start another drawing layer.");
+        return;
+      }
+      const mark = createMark(active, pos);
+      rememberMarks(active);
+      setSelectedMarkId(null);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = {
+        type: "mark",
+        x: e.clientX,
+        y: e.clientY,
+        pan,
+        beforeMarks: active.marks || [],
+        beforeMarkHistory: markHistory,
+        markId: mark.id,
+        wasDirty: dirty,
+        params: { ...active.params },
+      };
+      setActive({
+        ...active,
+        marks: [...(active.marks || []), mark],
+        params: {
+          ...active.params,
+          ...(mark.kind === "number"
+            ? { nextNumber: Math.min(999, (mark.number || 1) + 1) }
+            : {}),
+        },
+      });
+      setDirty(true);
+      return;
+    }
     if (active.tool === "id-photo") {
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = {
@@ -1048,6 +1262,82 @@ export default function App() {
     }
     const d = drag.current;
     if (!d) return;
+    if (d.type === "mark") {
+      const pos = {
+        ...point(e),
+        pressure: e.pointerType === "pen" ? Math.max(0.1, e.pressure) : 1,
+      };
+      setActive((previous) => {
+        if (!previous?.marks) return previous;
+        return {
+          ...previous,
+          marks: previous.marks.map((mark) => {
+            if (mark.id !== d.markId || ["fill", "number"].includes(mark.kind))
+              return mark;
+            const freehand =
+              ["pen", "highlighter", "eraser"].includes(mark.kind) ||
+              (mark.shape === "brush" &&
+                [
+                  "blur",
+                  "pixelate",
+                  "redact",
+                  "highlight",
+                  "spotlight",
+                ].includes(mark.kind));
+            if (freehand) {
+              const last = mark.points.at(-1)!,
+                count = previous.marks!.reduce(
+                  (n, m) => n + m.points.length,
+                  0,
+                );
+              if (
+                mark.points.length >= 10000 ||
+                count >= 50000 ||
+                Math.hypot(pos.x - last.x, pos.y - last.y) < 0.0005
+              )
+                return mark;
+              return { ...mark, points: [...mark.points, pos] };
+            }
+            return { ...mark, points: [mark.points[0], pos] };
+          }),
+        };
+      });
+      return;
+    }
+    if (d.type === "mark-move" && d.points) {
+      const rect = photoRef.current!.getBoundingClientRect(),
+        xs = d.points.map((p) => p.x),
+        ys = d.points.map((p) => p.y),
+        dx = Math.max(
+          -Math.min(...xs),
+          Math.min(1 - Math.max(...xs), (e.clientX - d.x) / rect.width),
+        ),
+        dy = Math.max(
+          -Math.min(...ys),
+          Math.min(1 - Math.max(...ys), (e.clientY - d.y) / rect.height),
+        );
+      setActive((previous) =>
+        previous
+          ? {
+              ...previous,
+              marks: previous.marks?.map((mark) =>
+                mark.id === d.markId
+                  ? {
+                      ...mark,
+                      points: d.points!.map((p) => ({
+                        ...p,
+                        x: p.x + dx,
+                        y: p.y + dy,
+                      })),
+                    }
+                  : mark,
+              ),
+            }
+          : previous,
+      );
+      setDirty(true);
+      return;
+    }
     if (d.type === "id-photo" && d.params && active) {
       const rect = photoRef.current!.getBoundingClientRect();
       setActive({
@@ -1132,6 +1422,19 @@ export default function App() {
         rect = e.currentTarget.getBoundingClientRect(),
         stroke = drag.current;
       // A second finger turns the whole gesture into navigation, including its first contact.
+      if (stroke?.type === "mark" || stroke?.type === "mark-move") {
+        setActive((previous) =>
+          previous
+            ? {
+                ...previous,
+                marks: stroke.beforeMarks || [],
+                params: stroke.params || previous.params,
+              }
+            : previous,
+        );
+        setMarkHistory(stroke.beforeMarkHistory || null);
+        setDirty(stroke.wasDirty || false);
+      }
       if (stroke?.type === "paint") {
         setActive((previous) =>
           previous
@@ -1532,6 +1835,17 @@ export default function App() {
       return next.x === previous.x && next.y === previous.y ? previous : next;
     });
   }, [stageSize.width, stageSize.height, displayWidth, displayHeight, zoom]);
+  const selectedMark = active?.marks?.find(
+      (mark) => mark.id === selectedMarkId,
+    ),
+    selectedBounds = selectedMark
+      ? markBounds(selectedMark, outputSize.width, outputSize.height)
+      : undefined,
+    canRedoMark = !!(
+      active &&
+      markHistory?.editId === active.id &&
+      markHistory.future.length
+    );
   const cropped = active?.tool === "crop",
     local =
       active &&
@@ -1777,7 +2091,7 @@ export default function App() {
                   icon={Redo2}
                   label="Redo (Ctrl+Shift+Z)"
                   onClick={redo}
-                  disabled={cursor >= history.length - 1}
+                  disabled={cursor >= history.length - 1 && !canRedoMark}
                 />
               </div>
               <span className="vertical-divider" />
@@ -1838,7 +2152,7 @@ export default function App() {
               {photo ? (
                 <div
                   ref={photoRef}
-                  className={`photo-wrap ${["brush", "healing"].includes(active?.tool || "") ? "paint-cursor" : ""} ${zoom > 1 ? "can-pan" : ""}`}
+                  className={`photo-wrap ${["brush", "healing"].includes(active?.tool || "") || (active && usesMarks(active)) ? "paint-cursor" : ""} ${zoom > 1 ? "can-pan" : ""}`}
                   style={{
                     width: displayWidth,
                     height: displayHeight,
@@ -1857,6 +2171,23 @@ export default function App() {
                     aria-label={`Edited preview of ${photo.name}`}
                     data-testid="photo-canvas"
                   />
+                  {selectedBounds &&
+                    active?.params.drawMode === "select" &&
+                    !showOriginal && (
+                      <svg
+                        className="annotation-selection"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-label="Selected drawing mark"
+                      >
+                        <rect
+                          x={selectedBounds.x * 100}
+                          y={selectedBounds.y * 100}
+                          width={selectedBounds.width * 100}
+                          height={selectedBounds.height * 100}
+                        />
+                      </svg>
+                    )}
                   {active?.tool === "text" &&
                     dirty &&
                     !showOriginal &&
@@ -2304,6 +2635,8 @@ export default function App() {
                     );
                     setDirty(true);
                   }}
+                  onMarkAction={markAction}
+                  selectedMark={!!selectedBounds}
                   onClearSelection={() => {
                     setActive((previous) =>
                       previous
@@ -2458,6 +2791,8 @@ export default function App() {
               "Creative",
               "Portrait",
               "Finishing",
+              "Annotation",
+              "Utilities",
             ].map((group) => {
               const list = tools.filter(
                 (t) => t.group === group && matchesTool(t, search),
@@ -3042,6 +3377,55 @@ export default function App() {
             <span>Everything is happening right here on your device.</span>
           </div>
         </Modal>
+      )}
+      {dialog === "ocr" && (
+        <Suspense
+          fallback={
+            <Modal
+              title="Opening text recognition…"
+              onClose={() => setDialog(null)}
+            >
+              <LoaderCircle className="spin" />
+            </Modal>
+          }
+        >
+          <OcrStudio
+            onClose={() => setDialog(null)}
+            getSource={async () => {
+              if (!photo) throw new Error("Open a photo first.");
+              const native = await measureOutput(photo, previewEdits);
+              let size = fitDimensions(native.width, native.height, 3200);
+              if (size.width * size.height > 8000000) {
+                const scale = Math.sqrt(8000000 / (size.width * size.height));
+                size = {
+                  width: Math.floor(size.width * scale),
+                  height: Math.floor(size.height * scale),
+                };
+              }
+              return renderForExport(photo, previewEdits, size);
+            }}
+            onAddText={(text) => {
+              if (dirty && active) commit(previewEdits, `Applied ${tool.name}`);
+              const edit = freshEdit("text");
+              setActive({
+                ...edit,
+                params: {
+                  ...edit.params,
+                  text: text.slice(0, 300).split("\n").slice(0, 8).join("\n"),
+                  size: 6,
+                  font: "sans",
+                },
+              });
+              setDirty(true);
+              setEditingId(null);
+              setRail("edit");
+              setDialog(null);
+              setMobilePanel(true);
+              setPanelExpanded(false);
+              setShowOriginal(false);
+            }}
+          />
+        </Suspense>
       )}
       {dialog === "camera" && (
         <CameraStudio

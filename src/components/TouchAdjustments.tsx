@@ -42,7 +42,13 @@ export default function TouchAdjustments({
     p = edit.params;
   let action:
     { label: string; icon: typeof Upload; run: () => void } | undefined;
-  if (tool.id === "id-photo")
+  if (["draw", "privacy", "fill", "brush"].includes(tool.id))
+    action = {
+      label: "Brushes, colors and tools",
+      icon: Palette,
+      run: onExpand,
+    };
+  else if (tool.id === "id-photo")
     action = {
       label: "Choose ID photo size",
       icon: ContactRound,

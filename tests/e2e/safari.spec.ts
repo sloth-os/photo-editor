@@ -8,6 +8,8 @@ import {
   download,
   decodedSize,
 } from "./output-helpers";
+import { diagram, mode, pixel, stroke, tool } from "./annotation-helpers";
+import { ocrPhoto, openOcr, scan } from "./ocr-helpers";
 
 test("iPhone WebKit renders every Look and its thumbnail without Canvas.filter", async ({
   page,
@@ -138,4 +140,52 @@ test("iPhone WebKit rotates text with the on-image handle and preserves it in ex
     .click();
   await openExport(page, "PNG");
   expect((await download(page)).bytes.length).toBeGreaterThan(1000);
+});
+
+test("iPhone WebKit draws colored annotations and fills or redacts real image pixels", async ({
+  page,
+}) => {
+  await ready(page);
+  await diagram(page);
+  await tool(page, "Draw & annotate");
+  await page
+    .getByRole("button", { name: "More controls", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Blue paint", exact: true }).click();
+  await mode(page, "Arrow");
+  await page.getByRole("button", { name: "More photo", exact: true }).click();
+  await stroke(page, [0.2, 0.5], [0.8, 0.5]);
+  await expect.poll(() => pixel(page, 200, 150)).toEqual([87, 155, 231, 255]);
+  await tool(page, "Color fill");
+  await stroke(page, [0.1, 0.1]);
+  await expect.poll(() => pixel(page, 20, 20)).toEqual([239, 99, 81, 255]);
+  await tool(page, "Privacy & emphasis");
+  await page
+    .getByRole("button", { name: "More controls", exact: true })
+    .click();
+  await page.getByLabel("Effect", { exact: true }).selectOption("redact");
+  await page.getByRole("button", { name: "More photo", exact: true }).click();
+  await stroke(page, [0.3, 0.3], [0.7, 0.7]);
+  await expect.poll(() => pixel(page, 200, 150)).toEqual([17, 17, 17, 255]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("iPhone WebKit recognizes English with the bundled OCR worker and model", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await ready(page);
+  await ocrPhoto(page);
+  await openOcr(page);
+  await scan(page, "HELLO WORLD");
+  await expect(page.getByLabel("Recognized text", { exact: true })).toHaveValue(
+    /Order 2026/,
+  );
+  expect(errors).toEqual([]);
 });

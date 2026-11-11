@@ -4605,3 +4605,186 @@ select {
   color: #e2bc82;
   margin-top: 8px;
 }
+
+.drawing-controls {
+  margin-bottom: 22px;
+}
+.drawing-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0 18px;
+}
+.drawing-modes button {
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #4a6039;
+  border-radius: 7px;
+  color: #bdcfae;
+  font-size: 10px;
+}
+.drawing-modes button.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #36472a;
+}
+.drawing-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+.drawing-swatches button {
+  min-height: 38px;
+  border: 2px solid #4d613c;
+  border-radius: 7px;
+}
+.drawing-swatches button[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.drawing-actions {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 12px;
+}
+.drawing-actions button {
+  flex: 1;
+  min-height: 42px;
+  font-size: 11px;
+  padding: 8px;
+}
+.drawing-controls > select {
+  margin-bottom: 18px;
+}
+.annotation-selection {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  fill: none;
+  stroke: #e4f5d3;
+  stroke-width: 0.4;
+  stroke-dasharray: 2 1;
+  filter: drop-shadow(0 1px 1px #101810);
+}
+.ocr-modal {
+  max-width: 700px;
+}
+.ocr-intro {
+  font-size: 12px;
+  color: #adc19b;
+  line-height: 20px;
+  margin: 0 0 18px;
+}
+.ocr-preview {
+  position: relative;
+  margin: 0 auto 14px;
+  background: #fff;
+  overflow: hidden;
+  border-radius: 5px;
+}
+.ocr-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ocr-preview {
+  touch-action: pan-y;
+}
+.ocr-preview.selecting {
+  touch-action: none;
+  cursor: crosshair;
+}
+.ocr-preview svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: #bde59d26;
+  stroke: #a9d77e;
+  stroke-width: 0.6;
+}
+.ocr-preview svg[aria-label="Recognized word locations"] {
+  stroke-width: 2;
+}
+.ocr-preparing {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #26351e;
+  color: #bed7a6;
+  font-size: 12px;
+}
+.ocr-region-actions,
+.ocr-run,
+.ocr-output-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 20px;
+}
+.ocr-region-actions button,
+.ocr-run button,
+.ocr-output-actions button {
+  min-height: 44px;
+  font-size: 12px;
+}
+.ocr-run .primary-button {
+  flex: 1;
+}
+.ocr-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #bcd5a4;
+  font-size: 11px;
+  min-height: 28px;
+  margin: 14px 0;
+}
+.ocr-error {
+  color: #e7b78b;
+  line-height: 20px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.ocr-modal textarea {
+  width: 100%;
+  min-height: 160px;
+  border: 1px solid #4b603b;
+  border-radius: 8px;
+  background: #1d2a18;
+  color: #e0ecd5;
+  padding: 13px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.touch-layout .drawing-swatches button {
+  min-height: 44px;
+}
+.touch-layout .drawing-modes button {
+  min-height: 56px;
+}
+@media (max-width: 550px) {
+  .ocr-output-actions button {
+    flex: 1;
+    min-width: 90px;
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+  .ocr-modal textarea {
+    font-size: 16px;
+  }
+}

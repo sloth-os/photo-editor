@@ -57,3 +57,14 @@ https://github.com/hMatoba/piexifjs
 
 Pinned model origins and checksums: models/SOURCES.md.
 Runtime package licenses are copied to licenses/generated/ during preparation.
+
+Local text recognition:
+Tesseract.js: Jerome Wu, Kevin Kwok, and contributors, Apache License 2.0.
+https://github.com/naptha/tesseract.js
+Tesseract.js-core / Tesseract OCR engine: Tesseract contributors,
+Apache License 2.0. https://github.com/naptha/tesseract.js-core
+https://github.com/tesseract-ocr/tesseract
+Ten tessdata_fast language models (4.1.0), Apache License 2.0.
+https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0
+Pinned sources/checksums: models/ocr/SOURCES.md.
+Full license: licenses/Tesseract-Apache-2.txt.

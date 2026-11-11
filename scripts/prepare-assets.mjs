@@ -55,6 +55,38 @@ for (const [name, expected] of Object.entries(models)) {
   if (actual !== expected) throw new Error(`Model checksum mismatch: ${name}`);
 }
 const licenses = new URL("../public/licenses/generated/", import.meta.url);
+const ocrRoot = new URL("../public/vendor/ocr/", import.meta.url);
+await mkdir(new URL("core/", ocrRoot), { recursive: true });
+await copyFile(
+  new URL("../node_modules/tesseract.js/dist/worker.min.js", import.meta.url),
+  new URL("worker.min.js", ocrRoot),
+);
+for (const name of [
+  "tesseract-core-lstm.wasm.js",
+  "tesseract-core-lstm.wasm",
+  "tesseract-core-simd-lstm.wasm.js",
+  "tesseract-core-simd-lstm.wasm",
+])
+  await copyFile(
+    new URL(`../node_modules/tesseract.js-core/${name}`, import.meta.url),
+    new URL(`core/${name}`, ocrRoot),
+  );
+for (const row of JSON.parse(
+  await readFile(new URL("ocr-models.json", import.meta.url), "utf8"),
+)) {
+  const hash = createHash("sha256")
+    .update(
+      await readFile(
+        new URL(
+          `../public/models/ocr/${row.language}.traineddata.gz`,
+          import.meta.url,
+        ),
+      ),
+    )
+    .digest("hex");
+  if (hash !== row.sha256)
+    throw new Error(`OCR model checksum mismatch: ${row.language}`);
+}
 await mkdir(licenses, { recursive: true });
 for (const name of [
   "react",
@@ -80,6 +112,12 @@ for (const name of [
   "@mediapipe/tasks-vision",
   "onnxruntime-web",
   "piexifjs",
+  "tesseract.js",
+  "tesseract.js-core",
+  "bmp-js",
+  "idb-keyval",
+  "wasm-feature-detect",
+  "zlibjs",
 ]) {
   const root = new URL(`../node_modules/${name}/`, import.meta.url);
   for (const file of (await readdir(root)).filter((f) =>
