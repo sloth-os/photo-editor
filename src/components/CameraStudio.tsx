@@ -19,11 +19,19 @@ export default function CameraStudio({
   const video = useRef<HTMLVideoElement>(null),
     preview = useRef<HTMLCanvasElement>(null),
     [facing, setFacing] = useState<"environment" | "user">("environment"),
+    [deviceId, setDeviceId] = useState(""),
+    [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
+    [activeDevice, setActiveDevice] = useState(""),
+    [actualFacing, setActualFacing] = useState<string>(""),
+    [retry, setRetry] = useState(0),
     [error, setError] = useState(""),
     [ready, setReady] = useState(false),
     [capturing, setCapturing] = useState(false),
     [choice, setChoice] = useState("original"),
     [mirror, setMirror] = useState(true);
+  const mirrorRef = useRef(mirror);
+  mirrorRef.current = mirror;
+  const viewFacing = actualFacing || facing;
   const edits = useRef<Edit[]>([]),
     selected: Edit[] = choice.startsWith("saved-")
       ? recipes[Number(choice.slice(6))]?.edits || []
@@ -38,20 +46,44 @@ export default function CameraStudio({
       last = 0;
     setError("");
     setReady(false);
+    setActualFacing("");
     (async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia)
           throw new Error(
             "Camera access is unavailable here. Open a photo or use Still over HTTPS.",
           );
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facing },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-          audio: false,
-        });
+        const resolution = {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        };
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              ...resolution,
+              ...(deviceId
+                ? { deviceId: { exact: deviceId } }
+                : { facingMode: { exact: facing } }),
+            },
+            audio: false,
+          });
+        } catch (e) {
+          if (
+            deviceId ||
+            !(e instanceof DOMException) ||
+            ![
+              "OverconstrainedError",
+              "NotFoundError",
+              "ConstraintNotSatisfiedError",
+            ].includes(e.name)
+          )
+            throw e;
+          // Desktops and single-camera devices may not expose facing constraints.
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { ...resolution, facingMode: { ideal: facing } },
+            audio: false,
+          });
+        }
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -60,6 +92,24 @@ export default function CameraStudio({
         v.srcObject = stream;
         await v.play();
         if (cancelled) return;
+        const track = stream.getVideoTracks()[0],
+          settings = track.getSettings(),
+          direction = ["user", "environment"].includes(
+            settings.facingMode || "",
+          )
+            ? settings.facingMode!
+            : /front|facetime|user/i.test(track.label)
+              ? "user"
+              : /back|rear|environment/i.test(track.label)
+                ? "environment"
+                : "";
+        setActualFacing(direction);
+        setActiveDevice(settings.deviceId || "");
+        const available =
+          (await navigator.mediaDevices.enumerateDevices?.().catch(() => [])) ||
+          [];
+        if (cancelled) return;
+        setDevices(available.filter((d) => d.kind === "videoinput"));
         setReady(true);
         const source = document.createElement("canvas");
         const tick = async (time: number) => {
@@ -68,9 +118,14 @@ export default function CameraStudio({
             last = time;
             source.width = 640;
             source.height = Math.round((640 * v.videoHeight) / v.videoWidth);
-            source
-              .getContext("2d")!
-              .drawImage(v, 0, 0, source.width, source.height);
+            const ctx = source.getContext("2d")!;
+            ctx.save();
+            if ((direction || facing) === "user" && mirrorRef.current) {
+              ctx.translate(source.width, 0);
+              ctx.scale(-1, 1);
+            }
+            ctx.drawImage(v, 0, 0, source.width, source.height);
+            ctx.restore();
             try {
               const image = await renderImage(source, edits.current, 680);
               if (cancelled || !preview.current) return;
@@ -89,6 +144,7 @@ export default function CameraStudio({
         };
         frame = requestAnimationFrame(tick);
       } catch (e) {
+        stream?.getTracks().forEach((track) => track.stop());
         if (!cancelled)
           setError(
             e instanceof Error && e.name === "NotAllowedError"
@@ -104,7 +160,7 @@ export default function CameraStudio({
       cancelAnimationFrame(frame);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [facing]);
+  }, [facing, deviceId, retry]);
   async function capture() {
     const v = video.current;
     if (!v?.videoWidth) return;
@@ -116,7 +172,7 @@ export default function CameraStudio({
       c.getContext("2d")!.drawImage(v, 0, 0);
       const blob = await toBlob(c, "image/jpeg", 0.98),
         recipe: Edit[] = [
-          ...(facing === "user" && mirror
+          ...(viewFacing === "user" && mirror
             ? [
                 {
                   id: crypto.randomUUID(),
@@ -151,13 +207,7 @@ export default function CameraStudio({
     >
       <video ref={video} muted playsInline autoPlay className="camera-source" />
       <div className="camera-view">
-        <canvas
-          ref={preview}
-          style={{
-            transform: facing === "user" && mirror ? "scaleX(-1)" : undefined,
-          }}
-          aria-label="Live camera with selected look"
-        />
+        <canvas ref={preview} aria-label="Live camera with selected look" />
         {!ready && !error && (
           <div className="camera-loading">
             <LoaderCircle className="spin" /> Opening your camera…
@@ -170,9 +220,71 @@ export default function CameraStudio({
             <button className="secondary-button" onClick={onOpen}>
               <FolderOpen size={16} /> Open photo
             </button>
+            <button
+              className="text-button"
+              onClick={() => setRetry((v) => v + 1)}
+            >
+              Try camera again
+            </button>
           </div>
         )}
       </div>
+      <div
+        className="camera-direction"
+        role="group"
+        aria-label="Camera direction"
+      >
+        {(
+          [
+            ["environment", "Back camera"],
+            ["user", "Front camera"],
+          ] as const
+        ).map(([direction, label]) => (
+          <button
+            key={direction}
+            disabled={capturing}
+            aria-pressed={facing === direction && !deviceId}
+            className={facing === direction && !deviceId ? "selected" : ""}
+            onClick={() => {
+              setDeviceId("");
+              setFacing(direction);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {devices.length > 1 && (
+        <div className="camera-device">
+          <label className="field-label" htmlFor="camera-device">
+            Camera lens
+          </label>
+          <select
+            id="camera-device"
+            value={deviceId || activeDevice}
+            disabled={capturing}
+            onChange={(e) => setDeviceId(e.target.value)}
+          >
+            <option value="">Automatic camera</option>
+            {devices.map((device, i) => (
+              <option value={device.deviceId} key={device.deviceId}>
+                {device.label || `Camera ${i + 1}`}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <p className="camera-device-status" role="status">
+        {ready
+          ? actualFacing === "user"
+            ? "Front camera active"
+            : actualFacing === "environment"
+              ? "Back camera active"
+              : "Camera active · direction not reported by this device"
+          : error
+            ? "Camera unavailable"
+            : "Starting camera…"}
+      </p>
       <div className="camera-looks">
         {looks.map((look) => (
           <button
@@ -197,9 +309,11 @@ export default function CameraStudio({
         <button
           className="secondary-button"
           aria-label="Switch camera"
-          onClick={() =>
-            setFacing((v) => (v === "user" ? "environment" : "user"))
-          }
+          disabled={capturing}
+          onClick={() => {
+            setDeviceId("");
+            setFacing(viewFacing === "user" ? "environment" : "user");
+          }}
         >
           <RefreshCw size={17} />
         </button>
@@ -211,14 +325,14 @@ export default function CameraStudio({
         >
           {capturing ? <LoaderCircle className="spin" /> : <Camera size={24} />}
         </button>
-        {facing === "user" ? (
+        {viewFacing === "user" ? (
           <label className="mirror-control">
             <input
               type="checkbox"
               checked={mirror}
               onChange={(e) => setMirror(e.target.checked)}
             />{" "}
-            Mirror
+            Mirror selfie
           </label>
         ) : (
           <span className="camera-caption">Original + editable look</span>

@@ -51,6 +51,7 @@ import {
   tools,
   looks,
   defaults,
+  matchesTool,
   type Edit,
   type Tool,
   type Params,
@@ -503,6 +504,9 @@ export default function App() {
         "raw",
         "hsl",
         "rotate",
+        "flip",
+        "collage",
+        "background",
         "perspective",
         "crop",
         "brush",
@@ -594,10 +598,12 @@ export default function App() {
           : previous,
       );
       setDirty(true);
-      if (kind === "subject") setShowMask(true);
+      if (kind === "subject") setShowMask(active.tool !== "background");
       notify(
         kind === "subject"
-          ? "Selection ready. Adjust just the area you chose."
+          ? active.tool === "background"
+            ? "Background removed. Choose a fill or export with transparency."
+            : "Selection ready. Adjust just the area you chose."
           : kind === "face"
             ? `${result.faces!.length} face${result.faces!.length > 1 ? "s" : ""} detected locally.`
             : "Depth map ready. Tap your photo to choose the focus distance.",
@@ -853,18 +859,30 @@ export default function App() {
       drag.current = { type: "paint", x: e.clientX, y: e.clientY, pan };
       paint(e);
     } else if (
-      ["selective", "vignette", "lens-blur", "portrait", "head-pose"].includes(
-        active.tool,
-      )
+      [
+        "selective",
+        "vignette",
+        "lens-blur",
+        "portrait",
+        "head-pose",
+        "skin",
+        "text",
+        "sticker",
+      ].includes(active.tool)
     ) {
       const pos = point(e),
-        isFace = ["portrait", "head-pose"].includes(active.tool);
+        isFace = ["portrait", "head-pose", "skin"].includes(active.tool),
+        isLayer = ["text", "sticker"].includes(active.tool);
       setActive({
         ...active,
         params: {
           ...active.params,
-          [isFace ? "centerX" : "x"]: Math.round(pos.x * 100),
-          [isFace ? "centerY" : "y"]: Math.round(pos.y * 100),
+          [isFace ? "centerX" : isLayer ? "positionX" : "x"]: Math.round(
+            pos.x * 100,
+          ),
+          [isFace ? "centerY" : isLayer ? "positionY" : "y"]: Math.round(
+            pos.y * 100,
+          ),
         },
       });
       setDirty(true);
@@ -909,13 +927,44 @@ export default function App() {
     }
   }
   async function addOverlay(file: File) {
-    setBusy("Blending your moments…");
+    if (!active) return;
+    const id = active.id;
+    setBusy("Preparing your image layer…");
     try {
       const image = await fileToDataUrl(file);
-      setActive((prev) => (prev ? { ...prev, image } : prev));
+      setActive((prev) => (prev?.id === id ? { ...prev, image } : prev));
       setDirty(true);
     } catch (e) {
       notify(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function addCollageFiles(files: File[]) {
+    if (!active || active.tool !== "collage") return;
+    const id = active.id,
+      remaining = 8 - (active.images?.length || 0);
+    if (remaining <= 0) {
+      notify("A composition can hold up to nine photos.");
+      return;
+    }
+    setBusy("Bringing your photos together…");
+    try {
+      // Decode sequentially to keep mobile memory bounded.
+      const images: string[] = [];
+      for (const file of files.slice(0, remaining))
+        images.push(await fileToDataUrl(file));
+      setActive((previous) =>
+        previous?.id === id
+          ? { ...previous, images: [...(previous.images || []), ...images] }
+          : previous,
+      );
+      setDirty(true);
+      setShowOriginal(false);
+      if (files.length > remaining)
+        notify(`Added ${remaining} photos. A composition holds up to nine.`);
+    } catch (error) {
+      notify(errorText(error));
     } finally {
       setBusy("");
     }
@@ -1816,6 +1865,15 @@ export default function App() {
                   edit={active || freshEdit("tune")}
                   setParam={setParam}
                   onOverlay={(file) => void addOverlay(file)}
+                  onCollageFiles={(files) => void addCollageFiles(files)}
+                  thumbnail={thumb}
+                  onPatchEdit={(patch) => {
+                    setActive((previous) =>
+                      previous ? { ...previous, ...patch } : previous,
+                    );
+                    setDirty(true);
+                    setShowOriginal(false);
+                  }}
                   onLut={(file) => void addLut(file)}
                   onAuto={autoAdjust}
                   onCropRatio={cropRatio}
@@ -1985,11 +2043,7 @@ export default function App() {
               "Finishing",
             ].map((group) => {
               const list = tools.filter(
-                (t) =>
-                  t.group === group &&
-                  `${t.name} ${t.description}`
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
+                (t) => t.group === group && matchesTool(t, search),
               );
               return (
                 list.length > 0 && (
@@ -2013,11 +2067,7 @@ export default function App() {
                 )
               );
             })}
-            {!tools.some((t) =>
-              `${t.name} ${t.description}`
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            ) && (
+            {!tools.some((t) => matchesTool(t, search)) && (
               <div className="empty-state">
                 <Search size={30} />
                 <p>No tools found.</p>

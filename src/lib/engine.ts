@@ -13,6 +13,12 @@ import { contentAware } from "./content-aware";
 import { warpFace, faceRegion } from "./face-mesh";
 import { recoverHaze } from "./dehaze";
 import { developRaw } from "./raw";
+import {
+  collageLayout,
+  cutoutAlpha,
+  skinWeight,
+  stickers,
+} from "./composition";
 
 type Canvas = HTMLCanvasElement;
 export function canvas(w: number, h: number): Canvas {
@@ -202,7 +208,7 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
   let subject: Uint8ClampedArray | undefined;
   if (
     edit.mask &&
-    ["selective", "brush", "lens-blur", "motion"].includes(tool)
+    ["selective", "brush", "lens-blur", "motion", "background"].includes(tool)
   ) {
     const image = await loadImage(edit.mask),
       mask = canvas(w, h);
@@ -313,7 +319,7 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     context(out).drawImage(src, left, top, ww, hh, 0, 0, out.width, out.height);
     return out;
   }
-  if (tool === "rotate") {
+  if (tool === "rotate" || tool === "flip") {
     const quarter = ((n("turns") % 4) + 4) % 4,
       rad = ((quarter * 90 + n("angle")) * Math.PI) / 180,
       cs = Math.cos(rad),
@@ -323,12 +329,77 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         Math.abs(w * sn) + Math.abs(h * cs),
       ),
       ctx = context(out);
-    ctx.fillStyle = "#151715";
-    ctx.fillRect(0, 0, out.width, out.height);
     ctx.translate(out.width / 2, out.height / 2);
     ctx.rotate(rad);
     ctx.scale(n("flipX") ? -1 : 1, n("flipY") ? -1 : 1);
     ctx.drawImage(src, -w / 2, -h / 2);
+    return out;
+  }
+  if (tool === "collage" && edit.images?.length) {
+    const sources = [
+        src,
+        ...(await Promise.all(
+          edit.images.slice(0, 8).map((url) => loadImage(url)),
+        )),
+      ],
+      sizes = sources.map((image) => ({
+        width: "naturalWidth" in image ? image.naturalWidth : image.width,
+        height: "naturalHeight" in image ? image.naturalHeight : image.height,
+      })),
+      layout = collageLayout(sizes, p, Math.max(w, h)),
+      out = canvas(layout.width, layout.height),
+      ctx = context(out);
+    ctx.fillStyle = String(p.color || "#f3f0e8");
+    ctx.fillRect(0, 0, out.width, out.height);
+    for (const cell of layout.cells) {
+      const image = sources[cell.index],
+        size = sizes[cell.index],
+        scale = (
+          p.fit === "contain" || p.layout !== "grid" ? Math.min : Math.max
+        )(cell.width / size.width, cell.height / size.height);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cell.x, cell.y, cell.width, cell.height);
+      ctx.clip();
+      ctx.drawImage(
+        image,
+        cell.x + (cell.width - size.width * scale) / 2,
+        cell.y + (cell.height - size.height * scale) / 2,
+        size.width * scale,
+        size.height * scale,
+      );
+      ctx.restore();
+    }
+    return out;
+  }
+  if (tool === "background" && subject) {
+    const cutout = copy(src),
+      cx = context(cutout),
+      im = cx.getImageData(0, 0, w, h);
+    for (let i = 0; i < im.data.length; i += 4)
+      im.data[i + 3] = Math.round(
+        im.data[i + 3] *
+          cutoutAlpha(subject[i + 3] / 255, n("edge"), n("feather", 15)),
+      );
+    cx.putImageData(im, 0, 0);
+    if (p.fill === "transparent" || !p.fill) return cutout;
+    const out = canvas(w, h),
+      ctx = context(out);
+    if (p.fill === "image" && edit.image) {
+      const image = await loadImage(edit.image),
+        scale = Math.max(w / image.naturalWidth, h / image.naturalHeight);
+      ctx.drawImage(
+        image,
+        (w - image.naturalWidth * scale) / 2,
+        (h - image.naturalHeight * scale) / 2,
+        image.naturalWidth * scale,
+        image.naturalHeight * scale,
+      );
+    } else {
+      ctx.fillStyle = String(p.color || "#f3f0e8");
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(cutout, 0, 0);
     return out;
   }
   if (tool === "perspective") {
@@ -654,7 +725,7 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         })
       : src;
   }
-  if (tool === "portrait") {
+  if (tool === "portrait" || tool === "skin") {
     const face = edit.faces?.[n("faceIndex")];
     if (face) Object.assign(p, faceRegion(face, w, h));
     const soft = blurred(src, Math.max(1, (w / 700) * 3)),
@@ -664,8 +735,41 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
       rx = (n("radius", 25) / 100) * Math.min(w, h),
       ry = rx * 1.35;
     return pixels(src, (r, g, b, x, y, i) => {
-      const a = clamp(1 - Math.hypot((x - cx) / rx, (y - cy) / ry), 0, 1),
-        smooth = (a * n("smooth")) / 130,
+      let a = clamp(1 - Math.hypot((x - cx) / rx, (y - cy) / ry), 0, 1);
+      if (tool === "skin") {
+        a = Math.min(1, a * 3) * skinWeight(r, g, b);
+        // Exclude the eye and mouth regions when facial landmarks are available.
+        if (face)
+          for (const [index, sx, sy] of [
+            [33, 0.25, 0.12],
+            [263, 0.25, 0.12],
+            [13, 0.32, 0.15],
+          ]) {
+            const point = face[index];
+            if (point)
+              a *=
+                1 -
+                Math.exp(
+                  -(
+                    ((x - point.x * w) / (rx * sx)) ** 2 +
+                    ((y - point.y * h) / (ry * sy)) ** 2
+                  ) * 2,
+                );
+          }
+        const difference = Math.abs(
+            luminance(r, g, b) - luminance(sd[i], sd[i + 1], sd[i + 2]),
+          ),
+          smoothing =
+            ((a * n("smooth")) / 100) *
+            0.85 *
+            Math.exp((-difference * difference) / 350),
+          whitening = ((a * n("whiten")) / 100) * 0.3;
+        return [r, g, b].map((v, channel) => {
+          const softened = mix(v, sd[i + channel], smoothing);
+          return softened + (255 - softened) * whitening;
+        });
+      }
+      const smooth = (a * n("smooth")) / 130,
         eyes = face
           ? Math.max(
               ...[468, 473].map((index) => {
@@ -841,6 +945,12 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
   if (tool === "text") {
     const ctx = context(src),
       size = (Math.min(w, h) * n("size", 10)) / 100;
+    ctx.save();
+    ctx.translate(
+      (w * n("positionX", 50)) / 100,
+      (h * n("positionY", 50)) / 100,
+    );
+    ctx.rotate((n("rotation") * Math.PI) / 180);
     ctx.globalAlpha = n("opacity", 100) / 100;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -852,13 +962,44 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     lines.forEach((line, i) =>
       ctx.fillText(
         line,
-        (w * n("positionX", 50)) / 100,
-        (h * n("positionY", 50)) / 100 +
-          (i - (lines.length - 1) / 2) * size * 1.25,
+        0,
+        (i - (lines.length - 1) / 2) * size * 1.25,
         w * 0.9,
       ),
     );
-    ctx.globalAlpha = 1;
+    ctx.restore();
+    return src;
+  }
+  if (tool === "sticker") {
+    const ctx = context(src),
+      size = (Math.min(w, h) * n("size", 25)) / 100;
+    ctx.save();
+    ctx.translate(
+      (w * n("positionX", 50)) / 100,
+      (h * n("positionY", 50)) / 100,
+    );
+    ctx.rotate((n("rotation") * Math.PI) / 180);
+    ctx.scale(n("flipX") ? -1 : 1, n("flipY") ? -1 : 1);
+    ctx.globalAlpha = n("opacity", 100) / 100;
+    const modes: Record<string, GlobalCompositeOperation> = {
+      normal: "source-over",
+      screen: "screen",
+      multiply: "multiply",
+      overlay: "overlay",
+    };
+    ctx.globalCompositeOperation = modes[String(p.blend)] || "source-over";
+    if (edit.image) {
+      const image = await loadImage(edit.image),
+        height = (size * image.naturalHeight) / image.naturalWidth;
+      ctx.drawImage(image, -size / 2, -height / 2, size, height);
+    } else {
+      const sticker = stickers.find((s) => s.id === p.sticker) || stickers[0];
+      ctx.scale(size / 100, size / 100);
+      ctx.translate(-50, -50);
+      ctx.fillStyle = String(p.color || "#e6aca4");
+      ctx.fill(new Path2D(sticker.path));
+    }
+    ctx.restore();
     return src;
   }
   if (tool === "frames") {

@@ -523,7 +523,14 @@ button img {
   position: relative;
   touch-action: none;
   transition: transform 0.1s ease-out;
-  background: #1b2018;
+  background-color: #292d28;
+  background-image: conic-gradient(
+    #3b4039 25%,
+    transparent 0 50%,
+    #3b4039 0 75%,
+    transparent 0
+  );
+  background-size: 16px 16px;
 }
 .photo-wrap canvas {
   display: block;
@@ -3323,6 +3330,128 @@ select {
   justify-content: space-between;
   gap: 15px;
   padding-top: 6px;
+}
+.camera-direction {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.camera-direction button,
+.composition-flips button {
+  border: 1px solid #4b6238;
+  border-radius: 8px;
+  color: #bfd2aa;
+  padding: 11px;
+  font-size: 11px;
+  flex: 1;
+}
+.camera-direction button.selected,
+.composition-flips button.selected {
+  background: #36472a;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.camera-device {
+  margin-top: 14px;
+}
+.camera-device-status {
+  font-size: 10px;
+  color: #9db786;
+  margin: 12px 0 0;
+}
+.composition-controls {
+  margin-bottom: 22px;
+}
+.composition-controls > .secondary-button {
+  margin-bottom: 16px;
+}
+.composition-flips {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 20px;
+}
+.composition-flips button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 42px;
+}
+.sticker-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin: 12px 0 18px;
+}
+.sticker-picker button {
+  min-height: 60px;
+  border: 1px solid #435b32;
+  background: #24331c;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #e6aca4;
+}
+.sticker-picker button.selected {
+  border-color: var(--accent);
+  background: #34472a;
+}
+.sticker-picker svg {
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+}
+.collage-sources {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.collage-sources li {
+  min-width: 0;
+  border: 1px solid #435b32;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #24331c;
+}
+.collage-sources img {
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  display: block;
+}
+.collage-sources li > div {
+  padding: 7px;
+}
+.collage-sources span {
+  display: block;
+  color: #bfd2aa;
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+.collage-source-actions {
+  display: flex;
+  gap: 4px;
+}
+.collage-source-actions button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  color: #bad29f;
+  border-radius: 4px;
+  background: #314227;
+}
+.collage-source-actions button:disabled {
+  opacity: 0.3;
+}
+.transform-buttons button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #36472a;
 }
 .camera-shutter {
   width: 62px;

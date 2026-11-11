@@ -60,3 +60,24 @@ payload. Unknown operators are disclosed and preserved, rather than assigned
 unverified meanings. XMP carries compatible fields plus a complete Still recipe
 extension. These choices make interoperability inspectable while retaining clear
 boundaries around proprietary processing.
+
+## Composition and retouching
+
+Collages keep the current edit as one source and embed up to eight additional
+photos in a stack entry. Source order and layout parameters remain editable.
+Grids offer crop-to-fill or entire-photo fit; horizontal and vertical stitching
+preserve source ratios. The final longest edge follows the working image, so
+preview and export share proportions without multiplying mobile canvas memory.
+Embedded assets are capped at 2400 px and preserve alpha when present.
+
+Built-in stickers use bundled vector paths. Raster overlays and text rotate
+around normalized positions; each applied layer can be re-edited or removed.
+Background removal refines learned foreground confidence into alpha, with
+transparent, solid, and imported-image destinations. Transforms preserve alpha.
+Skin retouching combines a soft skin-chroma mask with a manual/detected face
+region, luminance-aware smoothing, and landmark eye/lip protection.
+
+Camera selection first requests an exact front/back camera, falls back on
+devices without facing constraints, and offers enumerated physical lenses after
+permission. Switching and closing stop previous tracks. Selfie mirroring is
+applied before Look rendering in both preview and the captured editable stack.

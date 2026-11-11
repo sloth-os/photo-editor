@@ -419,7 +419,7 @@ export default function CommunityStudio({
           <p>
             The optional community server is included with Still. Your original
             photo stays on-device; sharing publishes the look and a small
-            preview.
+            preview, including any imported images used by the look.
           </p>
           {settings.url && (
             <button
@@ -569,7 +569,9 @@ export default function CommunityStudio({
           />
           <p className="analysis-note">
             Publishes the edit recipe and a small preview of your photo to the
-            connected service.
+            connected service.{" "}
+            {current.edits.some((edit) => edit.image || edit.images?.length) &&
+              "Imported collage photos, overlays, and replacement backgrounds in this look are also shared."}
           </p>
           <button className="primary-button full" disabled={!!busy}>
             <Upload size={15} /> Publish this look

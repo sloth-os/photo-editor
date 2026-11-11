@@ -6,7 +6,9 @@ Production builds generate a relative manifest and Workbox service worker. HTTPS
 
 The production precache includes HTML/styles/scripts, lazy QR/ZIP code, local font/sample/icons/licenses, the LibRaw decoder, MediaPipe runtime and models, and ONNX Runtime/Depth Anything V2 Small. The initial cache is about 61 MB. Model files are part of the repository and checked against pinned SHA-256 values during preparation. Inference fetches no remote model or image API.
 
-Original source Blobs, RAW bytes, edit stacks, embedded masks/depth/landmarks, saved Looks, and community caches/outbox are stored in IndexedDB. Saving is reported only after transaction completion. Clearing site data, private-mode restrictions, storage pressure, or browser eviction can remove this data; export important work.
+Original source Blobs, RAW bytes, edit stacks, collage/overlay images, embedded masks/depth/landmarks, saved Looks, and community caches/outbox are stored in IndexedDB. Saving is reported only after transaction completion. Clearing site data, private-mode restrictions, storage pressure, or browser eviction can remove this data; export important work.
+
+Collage/stitching, built-in vector stickers, imported overlays, text rotation, flip/mirror, skin retouching, and learned background removal all work offline. Cutouts retain alpha through transforms and PNG/WebP export. Camera selection requires a browser-exposed camera and permission, but no network service.
 
 New versions precache separately and wait for the update prompt. Updates are accepted after the current local-save status reports success; recovery reopens the saved project. Development mode intentionally does not register a service worker.
 

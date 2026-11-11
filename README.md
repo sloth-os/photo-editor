@@ -1,6 +1,6 @@
 # Still
 
-A mobile-friendly, Snapseed-inspired photo studio with **36 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
+A mobile-friendly, Snapseed-inspired photo studio with **41 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
 
 ## Run and check
 
@@ -25,14 +25,17 @@ Development intentionally does not register a service worker. Use production pre
 
 - Tone, white balance with neutral-point sampling, arbitrary RGB/channel/luminance curves, HSL, grading, detail, and dark-channel dehaze.
 - Crop handles/ratios, straightening/flips/perspective, smart texture expansion, selective adjustments, local brushes, and content-aware healing or clone mode.
+- Dedicated horizontal mirror and vertical flip controls; collage grids and horizontal/vertical stitching with up to nine photos, editable order, spacing, fit, and canvas color.
 - HDR, glow, tonal contrast, drama, vintage, film responses, grain, retrolux, grunge, monochrome/noir, motion blur, bloom, and halation.
 - Local subject/background segmentation for Selective, Brush, Motion Blur, and Lens Blur. Learned scene depth for depth-aware focus.
 - Automatic face landmarks, face-aware portrait lighting/eyes, and 3D mesh pose/eye/smile adjustments. Manual placement remains available. No identity recognition is performed.
-- Double exposure/blends, multiline typography, frames, and adjustable 3D LUTs in .cube, flattened Hald PNG, or tiled PNG layouts.
+- Face-aware skin smoothing and whitening, with skin-tone selection and eye/lip protection; manual placement when face detection is unavailable.
+- Local background removal with refined alpha edges, transparent/color/photo backgrounds, and PNG/WebP transparency export.
+- Six offline vector stickers, transparent image overlays, rotation/position/opacity/blends, multiline typography with arbitrary rotation, frames, and adjustable 3D LUTs in .cube, flattened Hald PNG, or tiled PNG layouts.
 - **16-bit linear RAW development** before display conversion; original RAW bytes survive local recovery and later development changes.
 - Editable/removable stack entries, undo/redo, original comparison, and automatic project recovery in IndexedDB.
 - Ten starter Looks, six offline Discover Looks, saved recipes, JSON/QR/XMP sharing, ZIP packs, and supported native Snapseed QR operators.
-- Live camera preview with built-in or saved Looks; capture retains an editable source and Look. Camera permission and device availability are browser-dependent.
+- Live camera preview with built-in or saved Looks; front/back selection, physical-lens picker, single-camera fallback, and consistent selfie mirroring. Capture retains an editable source and Look. Camera permission and device availability are browser-dependent.
 - JPG/PNG/WebP export with size/quality and optional EXIF preservation. GPS is included when present in supported source EXIF and preservation is selected. Batch export regenerates AI selections for each photo and downloads a ZIP.
 
 The app has its own algorithms and output. [Feature coverage](docs/FEATURES.md) identifies compatibility limits, including private Snapseed QR operators, Adobe-only profiles/settings, and single-image face reconstruction.
@@ -59,7 +62,7 @@ See [PWA details and manual OS checks](docs/PWA.md). Actual OS associations requ
 
 ## Optional community
 
-**Explore looks → Discover** always includes a local collection. To share Looks, connect a self-hosted community service in Discover. The included Node 24/SQLite service provides accounts, searchable Looks, likes, comments, ownership, and duplicate-safe offline publishing. It receives reviewed recipes and small previews, not original photos.
+**Explore looks → Discover** always includes a local collection. To share Looks, connect a self-hosted community service in Discover. The included Node 24/SQLite service provides accounts, searchable Looks, likes, comments, ownership, and duplicate-safe offline publishing. It receives reviewed recipes and small previews. Imported collage photos, overlays, and replacement backgrounds embedded in a shared recipe are also included; the primary source and original RAW file are not uploaded.
 
 ```sh
 npm run community:server
@@ -70,6 +73,8 @@ Public use needs separate HTTPS hosting and persistent storage; GitHub Pages can
 ## Practical limits
 
 Working images are limited to 6000 px on the longest side, 40 MP on import, and 100 MB encoded size. Large RAW inputs can develop at half size. Individual canvas allocations are limited to 48 MP/16,384 px. Final display edits and exports use 8-bit sRGB; incompatible original ICC profiles are not copied onto converted pixels. RAW exports preserve common shooting tags; original manufacturer-specific metadata and original RAW files are not rewritten. Animated input opens as a still.
+
+Imported collage/overlay images are normalized to at most 2400 px and retain transparency. A composition's longest edge follows the current working image. Stitching preserves each photo's aspect ratio; grid layouts offer fill or fit. JPG fills transparent areas with white; PNG and WebP retain alpha.
 
 Local projects and Looks can be removed by storage eviction or clearing site data. Export important work. A first online installation must complete before offline use. Models may take longer on older devices; analysis can be cancelled. Community operations require the optional backend, with an outbox for reviewed offline posts.
 

@@ -299,6 +299,16 @@ test("malformed render data is rejected before it can poison the public feed", (
       { tool: "curves", params: { curveRGB: "bad-json" } },
       { tool: "lut", params: { cube: "LUT_3D_SIZE 4\n0 0 0" } },
       { tool: "lut", params: { lutPng: "https://tracker.invalid/image.png" } },
+      {
+        tool: "collage",
+        params: {},
+        images: ["https://tracker.invalid/photo.png"],
+      },
+      {
+        tool: "collage",
+        params: {},
+        images: Array(9).fill("data:image/png;base64,AAAA"),
+      },
     ]) {
       const result = await api("/api/looks", {
         method: "POST",

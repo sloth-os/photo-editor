@@ -36,6 +36,11 @@ import {
   Sun,
   Flame,
   Box,
+  FlipHorizontal2,
+  LayoutGrid,
+  Sticker,
+  Scissors,
+  Smile,
 } from "lucide-react";
 
 export type Params = Record<string, number | string>;
@@ -51,6 +56,7 @@ export type Edit = {
   params: Params;
   points?: StrokePoint[];
   image?: string;
+  images?: string[];
   mask?: string;
   depth?: string;
   faces?: { x: number; y: number; z: number }[][];
@@ -153,6 +159,24 @@ export const tools: Tool[] = [
     group: "Transform",
     description: "A fresh perspective starts here.",
     controls: [c("angle", "Straighten", 0, -45, 45)],
+  },
+  {
+    id: "flip",
+    name: "Flip & mirror",
+    icon: FlipHorizontal2,
+    group: "Transform",
+    description: "See the other side of your moment.",
+    controls: [],
+    hint: "Mirror left to right, flip top to bottom, or combine both. Apply to keep the change editable.",
+  },
+  {
+    id: "collage",
+    name: "Collage & stitch",
+    icon: LayoutGrid,
+    group: "Transform",
+    description: "A few moments, together.",
+    controls: [c("gap", "Spacing", 2, 0, 10)],
+    hint: "Create a collage grid or choose horizontal or vertical stitching. Your current edit is the first photo. Add up to eight more and reorder them. Everything stays editable in the stack.",
   },
   {
     id: "perspective",
@@ -348,6 +372,21 @@ export const tools: Tool[] = [
     hint: "Detect faces on-device for precise face and eye adjustments, or position the face area manually.",
   },
   {
+    id: "skin",
+    name: "Skin retouch",
+    icon: Smile,
+    group: "Portrait",
+    description: "A softer finish, with texture intact.",
+    controls: [
+      c("smooth", "Skin smoothing", 35, 0),
+      c("whiten", "Skin whitening", 0, 0),
+      c("centerX", "Face center X", 50, 0),
+      c("centerY", "Face center Y", 40, 0),
+      c("radius", "Face size", 25, 5, 60),
+    ],
+    hint: "Detect a face or tap to place the retouch area. Smoothing and whitening target skin tones, with edges, eyes, and lips protected.",
+  },
+  {
     id: "head-pose",
     name: "Head pose",
     icon: ScanFace,
@@ -402,6 +441,33 @@ export const tools: Tool[] = [
     hint: "Add a second photo and choose how the two blend.",
   },
   {
+    id: "sticker",
+    name: "Stickers & overlay",
+    icon: Sticker,
+    group: "Finishing",
+    description: "Make the moment your own.",
+    controls: [
+      c("size", "Size", 25, 2, 150),
+      c("rotation", "Rotation", 0, -180, 180),
+      c("opacity", "Opacity", 100, 0),
+      c("positionX", "Horizontal", 50, 0),
+      c("positionY", "Vertical", 50, 0),
+    ],
+    hint: "Choose an offline sticker or import a transparent image. Tap the photo to position it. Apply, then add another layer.",
+  },
+  {
+    id: "background",
+    name: "Remove background",
+    icon: Scissors,
+    group: "Local adjustments",
+    description: "Keep your subject. Set a new scene.",
+    controls: [
+      c("edge", "Edge refinement", 0, -30, 30),
+      c("feather", "Edge softness", 15, 0, 100),
+    ],
+    hint: "Background removal runs on this device. Keep transparency, choose a color, or add a new photo. Export PNG or WebP to retain transparency.",
+  },
+  {
     id: "text",
     name: "Text",
     icon: Type,
@@ -409,6 +475,7 @@ export const tools: Tool[] = [
     description: "Give your moment a few words.",
     controls: [
       c("size", "Size", 10, 2, 40),
+      c("rotation", "Text rotation", 0, -180, 180),
       c("opacity", "Opacity", 100, 0),
       c("positionX", "Horizontal", 50, 0),
       c("positionY", "Vertical", 50, 0),
@@ -521,6 +588,16 @@ export const tools: Tool[] = [
   },
 ];
 
+export function matchesTool(tool: Tool, query: string) {
+  const text =
+    `${tool.name} ${tool.group} ${tool.description} ${tool.hint || ""} ${tool.controls.map((control) => control.label).join(" ")}`.toLowerCase();
+  return query
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .every((word) => text.includes(word));
+}
+
 export function defaults(id: string): Params {
   const params: Params = Object.fromEntries(
     (tools.find((t) => t.id === id)?.controls || []).map((c) => [
@@ -530,6 +607,25 @@ export function defaults(id: string): Params {
   );
   if (id === "curves") params.channel = "rgb";
   if (id === "rotate") Object.assign(params, { turns: 0, flipX: 0, flipY: 0 });
+  if (id === "flip") Object.assign(params, { flipX: 0, flipY: 0 });
+  if (id === "collage")
+    Object.assign(params, {
+      layout: "grid",
+      columns: 2,
+      ratio: "1:1",
+      fit: "cover",
+      color: "#f3f0e8",
+    });
+  if (id === "sticker")
+    Object.assign(params, {
+      sticker: "heart",
+      color: "#e6aca4",
+      blend: "normal",
+      flipX: 0,
+      flipY: 0,
+    });
+  if (id === "background")
+    Object.assign(params, { fill: "transparent", color: "#f3f0e8" });
   if (id === "expand") params.fill = "mirror";
   if (id === "healing") params.method = "smart";
   if (id === "brush") params.mode = "exposure";

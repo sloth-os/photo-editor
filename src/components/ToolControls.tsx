@@ -1,4 +1,5 @@
 import CurveGraph from "./CurveGraph";
+import CompositionControls from "./CompositionControls";
 import {
   Upload,
   FlipHorizontal2,
@@ -20,6 +21,9 @@ type Props = {
   edit: Edit;
   setParam: (key: string, value: number | string) => void;
   onOverlay: (file: File) => void;
+  onCollageFiles: (files: File[]) => void;
+  onPatchEdit: (patch: Partial<Edit>) => void;
+  thumbnail: string;
   onLut: (file: File) => void;
   onAuto: () => void;
   onCropRatio: (ratio: string) => void;
@@ -65,6 +69,9 @@ export default function ToolControls({
   edit,
   setParam,
   onOverlay,
+  onCollageFiles,
+  onPatchEdit,
+  thumbnail,
   onLut,
   onAuto,
   onCropRatio,
@@ -92,6 +99,17 @@ export default function ToolControls({
   );
   return (
     <>
+      {["flip", "collage", "sticker", "background"].includes(tool.id) && (
+        <CompositionControls
+          edit={edit}
+          thumbnail={thumbnail}
+          setParam={setParam}
+          onPatch={onPatchEdit}
+          onOverlay={onOverlay}
+          onCollageFiles={onCollageFiles}
+          onAnalyze={() => onAnalyze("subject", "subject")}
+        />
+      )}
       {["selective", "brush", "lens-blur", "motion"].includes(tool.id) && (
         <div className="intelligence-controls">
           <span className="field-label">Smart selection · on-device</span>
@@ -134,7 +152,7 @@ export default function ToolControls({
           {edit.depth ? "Recalculate depth map" : "Estimate scene depth"}
         </button>
       )}
-      {["portrait", "head-pose"].includes(tool.id) && (
+      {["portrait", "head-pose", "skin"].includes(tool.id) && (
         <div className="intelligence-controls">
           <button
             className="secondary-button full"
@@ -165,7 +183,9 @@ export default function ToolControls({
                 Face detected on this device.{" "}
                 {tool.id === "head-pose"
                   ? "Small changes keep the result natural."
-                  : "Lighting and eye adjustments follow this face."}
+                  : tool.id === "skin"
+                    ? "Retouching follows the skin in this face."
+                    : "Lighting and eye adjustments follow this face."}
               </p>
               <button className="text-button" onClick={onClearFace}>
                 Use manual placement
@@ -298,6 +318,7 @@ export default function ToolControls({
               key={label}
               title={label}
               aria-label={label}
+              aria-pressed={key.startsWith("flip") ? !!p[key] : undefined}
               onClick={() => setParam(key, value)}
             >
               <Icon size={19} />
@@ -427,6 +448,34 @@ export default function ToolControls({
             "Typewriter",
           ])}
           {choose("style", ["plain", "bold"], "Weight", ["Regular", "Bold"])}
+          <div
+            className="transform-buttons"
+            role="group"
+            aria-label="Rotate text"
+          >
+            <button
+              aria-label="Rotate text left"
+              onClick={() =>
+                setParam(
+                  "rotation",
+                  ((Number(p.rotation || 0) - 90 + 540) % 360) - 180,
+                )
+              }
+            >
+              <RotateCcw size={17} />
+            </button>
+            <button
+              aria-label="Rotate text right"
+              onClick={() =>
+                setParam(
+                  "rotation",
+                  ((Number(p.rotation || 0) + 90 + 540) % 360) - 180,
+                )
+              }
+            >
+              <RotateCw size={17} />
+            </button>
+          </div>
         </>
       )}
       {(tool.id === "text" || tool.id === "frames") && (

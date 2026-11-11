@@ -179,8 +179,21 @@ export function validateRecipe(value: unknown): Recipe {
           )
             throw new Error("Invalid tone curve in this look.");
         }
-    if (edit.image && !/^data:image\/(png|jpeg|webp);base64,/.test(edit.image))
+    const embeddedImage = (value: unknown) =>
+      typeof value === "string" &&
+      value.length <= 8 * 1024 * 1024 &&
+      /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value);
+    if (edit.image && !embeddedImage(edit.image))
       throw new Error("Only embedded image overlays are allowed in looks.");
+    if (
+      edit.images &&
+      (!Array.isArray(edit.images) ||
+        edit.images.length > 8 ||
+        edit.images.some((image) => !embeddedImage(image)))
+    )
+      throw new Error(
+        "Collages support up to eight embedded additional photos.",
+      );
     for (const field of ["mask", "depth"] as const)
       if (
         edit[field] &&
@@ -293,8 +306,19 @@ export async function fileToDataUrl(file: File): Promise<string> {
   const photo = await readPhoto(file),
     dim = fitDimensions(photo.width, photo.height, 2400),
     c = canvas(dim.width, dim.height);
-  c.getContext("2d")!.drawImage(photo.image, 0, 0, dim.width, dim.height);
-  return c.toDataURL("image/jpeg", 0.9);
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(photo.image, 0, 0, dim.width, dim.height);
+  const data = ctx.getImageData(0, 0, c.width, c.height).data;
+  let transparent = false;
+  for (let i = 3; i < data.length; i += 4)
+    if (data[i] < 255) {
+      transparent = true;
+      break;
+    }
+  const result = c.toDataURL(transparent ? "image/png" : "image/jpeg", 0.92);
+  if (result.length > 8 * 1024 * 1024)
+    throw new Error("This overlay is too large. Try a smaller image.");
+  return result;
 }
 
 export async function pngToCube(file: File): Promise<string> {

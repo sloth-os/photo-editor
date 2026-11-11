@@ -21,6 +21,11 @@ const toolIds = new Set([
   "white-balance",
   "crop",
   "rotate",
+  "flip",
+  "collage",
+  "sticker",
+  "background",
+  "skin",
   "perspective",
   "expand",
   "selective",
@@ -99,6 +104,20 @@ function validateRecipe(recipe) {
         )
       )
         throw new HttpError(400, "External image URLs are not accepted.");
+    if (
+      edit.images &&
+      (!Array.isArray(edit.images) ||
+        edit.images.length > 8 ||
+        edit.images.some(
+          (image) =>
+            typeof image !== "string" ||
+            !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image),
+        ))
+    )
+      throw new HttpError(
+        400,
+        "Collages require up to eight embedded additional photos.",
+      );
     if (
       edit.params.lutPng &&
       !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(edit.params.lutPng)
