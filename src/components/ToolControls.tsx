@@ -13,7 +13,7 @@ import {
   Layers,
 } from "lucide-react";
 import { useRef } from "react";
-import { type Edit, type Tool } from "../lib/catalog";
+import { type Edit, type Tool, visibleControls } from "../lib/catalog";
 import { Slider } from "./ui";
 
 type Props = {
@@ -492,27 +492,14 @@ export default function ToolControls({
         </div>
       )}
       <div className="sliders">
-        {tool.controls
-          .filter(
-            (control) =>
-              !(
-                tool.id === "healing" &&
-                p.method === "smart" &&
-                control.key.startsWith("offset")
-              ) &&
-              !(
-                edit.faces?.length &&
-                ["centerX", "centerY", "radius"].includes(control.key)
-              ),
-          )
-          .map((control) => (
-            <Slider
-              key={control.key}
-              control={control}
-              value={Number(p[control.key] ?? control.value)}
-              onChange={(v) => setParam(control.key, v)}
-            />
-          ))}
+        {visibleControls(tool, edit).map((control) => (
+          <Slider
+            key={control.key}
+            control={control}
+            value={Number(p[control.key] ?? control.value)}
+            onChange={(v) => setParam(control.key, v)}
+          />
+        ))}
       </div>
       {tool.hint && (
         <div className="tool-hint">

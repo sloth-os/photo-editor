@@ -23,6 +23,8 @@ Development intentionally does not register a service worker. Use production pre
 
 ## Editing
 
+- Touch layouts prioritize an edge-to-edge photo, a compact single-adjustment dock, and 44 px controls. **More controls** opens the full inspector; **More photo** returns to the compact dock. Wide touch tablets use a side inspector. **Expand photo preview** hides the editor chrome for inspection without losing edits.
+- Pinch up to 8× and pan with two fingers in every tool. One finger still paints with Brush/Healing; **Pan photo** provides an explicit navigation mode. Pinching cancels the first contact's tentative brush stroke.
 - Tone, white balance with neutral-point sampling, arbitrary RGB/channel/luminance curves, HSL, grading, detail, and dark-channel dehaze.
 - Crop handles/ratios, straightening/flips/perspective, smart texture expansion, selective adjustments, local brushes, and content-aware healing or clone mode.
 - Dedicated horizontal mirror and vertical flip controls; collage grids and horizontal/vertical stitching with up to nine photos, editable order, spacing, fit, and canvas color.

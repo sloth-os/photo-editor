@@ -598,6 +598,21 @@ export function matchesTool(tool: Tool, query: string) {
     .every((word) => text.includes(word));
 }
 
+export function visibleControls(tool: Tool, edit: Edit) {
+  return tool.controls.filter(
+    (control) =>
+      !(
+        tool.id === "healing" &&
+        edit.params.method === "smart" &&
+        control.key.startsWith("offset")
+      ) &&
+      !(
+        edit.faces?.length &&
+        ["centerX", "centerY", "radius"].includes(control.key)
+      ),
+  );
+}
+
 export function defaults(id: string): Params {
   const params: Params = Object.fromEntries(
     (tools.find((t) => t.id === id)?.controls || []).map((c) => [

@@ -46,10 +46,12 @@ export function Slider({
   control,
   value,
   onChange,
+  labelSlot,
 }: {
   control: Control;
   value: number;
   onChange: (n: number) => void;
+  labelSlot?: ReactNode;
 }) {
   const id = useId(),
     { min, max, label, step = 1 } = control;
@@ -65,11 +67,12 @@ export function Slider({
       className={`slider-control ${value !== control.value ? "changed" : ""}`}
     >
       <div className="slider-label">
-        <label htmlFor={id}>{label}</label>
+        {labelSlot || <label htmlFor={id}>{label}</label>}
         <button
           className="slider-value"
           onClick={() => onChange(control.value)}
           title={`Reset ${label}`}
+          aria-label={`Reset ${label}`}
         >
           {value > 0 && min < 0 ? "+" : ""}
           {control.key === "exposure" ? `${(value / 50).toFixed(2)} EV` : value}

@@ -3819,3 +3819,640 @@ select {
     flex-wrap: wrap;
   }
 }
+
+/* Touch workspaces give the photograph priority; the full inspector is optional. */
+.app-shell.touch-layout {
+  min-height: 0;
+  --touch-nav-height: calc(56px + env(safe-area-inset-bottom));
+  --sheet-height: 184px;
+}
+.touch-layout .topbar {
+  height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right)) 0
+    max(12px, env(safe-area-inset-left));
+  gap: 8px;
+}
+.touch-layout .brand {
+  gap: 6px;
+}
+.touch-layout .brand > span:nth-child(2) {
+  font-size: 30px;
+}
+.touch-layout .brand-mark {
+  width: 27px;
+}
+.touch-layout .brand-mark svg {
+  width: 26px;
+  height: 26px;
+}
+.touch-layout .brand-caption,
+.touch-layout .topbar-center,
+.touch-layout .privacy-indicator,
+.touch-layout .rail,
+.touch-layout .looks-section,
+.touch-layout .workspace-footer,
+.touch-layout .file-icon,
+.touch-layout .photo-heading p,
+.touch-layout .filename-menu {
+  display: none;
+}
+.touch-layout .topbar-actions {
+  gap: 8px;
+}
+.touch-layout .open-button,
+.touch-layout .export-button {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 12px;
+  gap: 8px;
+}
+.touch-layout .editor-layout {
+  display: flex;
+}
+.app-shell.touch-layout .workspace-main {
+  width: 100%;
+  padding: 0;
+}
+.touch-layout .workspace-heading {
+  height: 44px;
+  padding: 0 12px;
+  gap: 8px;
+}
+.touch-layout .photo-heading {
+  min-width: 0;
+}
+.touch-layout .photo-heading h1 {
+  max-width: 42vw;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.touch-layout .photo-heading p.touch-save-status {
+  display: block;
+  font-size: 10px;
+  line-height: 14px;
+  color: #9dac90;
+}
+.touch-layout .photo-heading p.touch-save-status.error {
+  color: #e2bc82;
+}
+.touch-layout button {
+  touch-action: manipulation;
+}
+.touch-layout .workspace-actions,
+.touch-layout .history-actions {
+  gap: 0;
+}
+.touch-layout .workspace-actions .vertical-divider {
+  display: none;
+}
+.touch-layout .workspace-actions .icon-button,
+.touch-layout .compare-button {
+  width: 44px;
+  height: 44px;
+}
+.touch-layout .compare-button {
+  padding: 0;
+  justify-content: center;
+}
+.touch-layout .compare-button > span {
+  display: none;
+}
+.app-shell.touch-layout .canvas-section {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: #171b17;
+}
+.touch-layout .canvas-topline {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 10px;
+  height: 24px;
+  padding: 0;
+  pointer-events: none;
+}
+.touch-layout .canvas-topline > div {
+  display: none;
+}
+.touch-layout .canvas-top-right {
+  padding: 5px 8px;
+  border-radius: 20px;
+  background: #182016b3;
+  color: #c3d0b7;
+  font-size: 9px;
+}
+.touch-layout .canvas-bottomline {
+  height: 48px;
+  padding: 0 8px;
+  justify-content: center;
+  background: #20271d;
+}
+.touch-layout .image-meta {
+  display: none;
+}
+.touch-layout .zoom-controls {
+  gap: 6px;
+  justify-content: center;
+}
+.touch-layout .zoom-controls .icon-button,
+.touch-layout .zoom-value {
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+}
+.touch-layout .zoom-value {
+  width: 64px;
+  font-size: 13px;
+  gap: 6px;
+}
+.touch-layout .zoom-controls .icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+.touch-layout .zoom-controls .vertical-divider {
+  margin: 0 2px;
+}
+.pan-toggle.is-active {
+  color: var(--accent);
+  background: #39482c;
+  border-radius: 7px;
+}
+.touch-gesture-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: #172013b8;
+  color: #d0ddc4;
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.app-shell.touch-layout:has(.tool-panel.mobile-open) {
+  --sheet-height: 184px;
+}
+.app-shell.touch-layout:has(.tool-panel.mobile-open.sheet-expanded),
+.app-shell.touch-layout:has(.tool-panel.mobile-open.history-panel) {
+  --sheet-height: min(420px, 50dvh);
+}
+.touch-layout .tool-panel {
+  display: flex;
+  position: fixed;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  bottom: var(--touch-nav-height);
+  width: 100%;
+  height: var(--sheet-height);
+  max-height: none;
+  border: 1px solid #52643f;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  transform: translateY(calc(100% + var(--touch-nav-height) + 10px));
+  box-shadow: 0 -8px 30px #0003;
+  pointer-events: none;
+}
+.touch-layout .tool-panel.mobile-open {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.app-shell.touch-layout:has(.tool-panel.mobile-open) .workspace-main {
+  padding-bottom: var(--sheet-height);
+  padding-right: 0;
+}
+.touch-layout .panel-topbar {
+  height: 44px;
+  padding: 0 10px;
+  gap: 4px;
+}
+.touch-layout .panel-topbar:before {
+  display: none;
+}
+.touch-layout .panel-topbar > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #d0ddc4;
+}
+.touch-layout .panel-topbar .all-tools-button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 11px;
+  padding: 0 5px;
+  margin-left: 0;
+}
+.touch-layout .panel-topbar .all-tools-button > span {
+  display: none;
+}
+.sheet-size-toggle {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--accent);
+  min-height: 44px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+.touch-layout .mobile-close {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+}
+.touch-adjustments {
+  padding: 0 16px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.touch-layout .full-tool-controls {
+  display: none;
+}
+.touch-layout .sheet-expanded .full-tool-controls {
+  display: block;
+}
+.touch-layout .sheet-expanded .touch-adjustments {
+  display: none;
+}
+.touch-layout .panel-scroll {
+  padding: 14px 18px 18px;
+  overscroll-behavior: contain;
+}
+.touch-layout .tool-title h2 {
+  font-size: 20px;
+  line-height: 26px;
+}
+.touch-layout .tool-title > p {
+  font-size: 12px;
+}
+.touch-layout .histogram,
+.touch-layout .gentle-tip,
+.touch-layout .quick-tools {
+  display: none;
+}
+.touch-layout .sliders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+.touch-layout .slider-label {
+  min-height: 36px;
+  margin: 0;
+}
+.touch-layout .slider-label > label {
+  font-size: 13px;
+}
+.touch-layout .slider-value {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 13px;
+  text-align: center;
+}
+.touch-layout .range-wrap {
+  height: 44px;
+}
+.touch-layout .range-wrap:before {
+  top: 20px;
+  height: 4px;
+}
+.touch-layout .range-zero {
+  top: 18px;
+  height: 8px;
+}
+.touch-layout .range-wrap input[type="range"] {
+  height: 44px;
+  touch-action: none;
+}
+.touch-layout .range-wrap input[type="range"]::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px #c5dda118;
+}
+.touch-layout .range-wrap input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
+.touch-parameter {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.touch-parameter select {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #4e6040;
+  border-radius: 7px;
+  background: #2b3822;
+  color: #e0ebd6;
+  font-size: 13px;
+}
+.touch-tool-action {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--accent);
+  border-radius: 7px;
+  background: #34442a;
+}
+.touch-flips {
+  display: flex;
+  gap: 12px;
+}
+.touch-flips button {
+  flex: 1;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #4e6040;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.touch-flips button[aria-pressed="true"] {
+  background: #3b4d2e;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.touch-layout .panel-bottom {
+  height: 52px;
+  padding: 4px 16px;
+  gap: 12px;
+}
+.touch-layout .panel-bottom .cancel-button {
+  min-height: 44px;
+  min-width: 64px;
+  font-size: 13px;
+}
+.touch-layout .panel-bottom .primary-button {
+  min-height: 44px;
+  max-width: none;
+  font-size: 13px;
+  margin: 0;
+}
+.touch-layout .mobile-nav {
+  display: flex;
+  flex-shrink: 0;
+  height: var(--touch-nav-height);
+  padding: 0 max(6px, env(safe-area-inset-right)) env(safe-area-inset-bottom)
+    max(6px, env(safe-area-inset-left));
+  align-items: center;
+  justify-content: space-around;
+  background: #252c20;
+  border-top: 1px solid #3d4b30;
+  z-index: 31;
+}
+.touch-layout .mobile-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  height: 52px;
+  position: relative;
+  font-size: 11px;
+  border-radius: 8px;
+  color: #b9c9a8;
+}
+.touch-layout .mobile-nav button.selected {
+  color: var(--accent);
+  background: #39482c;
+}
+.touch-layout .toast {
+  bottom: calc(var(--touch-nav-height) + 60px);
+}
+.touch-layout:has(.tool-panel.mobile-open) .toast {
+  bottom: calc(var(--touch-nav-height) + var(--sheet-height) + 60px);
+}
+.touch-layout
+  :is(.modal, .full-tool-controls)
+  :is(
+    .icon-button,
+    .secondary-button,
+    .primary-button,
+    .choice-row button,
+    .transform-buttons button,
+    .collage-source-actions button,
+    .camera-looks button
+  ) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.touch-layout
+  :is(.modal, .full-tool-controls)
+  :is(select, textarea, input[type="text"]) {
+  font-size: 16px;
+}
+.touch-layout .crop-corner {
+  min-width: 44px;
+  min-height: 44px;
+}
+.touch-layout .local-point {
+  width: 44px;
+  height: 44px;
+}
+@media (max-width: 550px) {
+  .touch-layout .sliders {
+    grid-template-columns: 1fr;
+  }
+  .touch-layout .sheet-size-toggle {
+    font-size: 10px;
+  }
+}
+@media (max-height: 500px) {
+  .app-shell.touch-layout {
+    --touch-nav-height: calc(48px + env(safe-area-inset-bottom));
+  }
+  .touch-layout .topbar {
+    height: calc(48px + env(safe-area-inset-top));
+  }
+  .touch-layout .workspace-heading {
+    display: none;
+  }
+  .touch-layout .mobile-nav button {
+    flex-direction: row;
+    height: 44px;
+    gap: 8px;
+  }
+  .touch-layout .tool-panel {
+    top: calc(48px + env(safe-area-inset-top));
+    left: auto;
+    width: 280px;
+    height: auto;
+    border-radius: 12px 0 0 0;
+    transform: translateX(100%);
+  }
+  .touch-layout .tool-panel.mobile-open {
+    transform: translateX(0);
+  }
+  .app-shell.touch-layout:has(.tool-panel.mobile-open) .workspace-main {
+    padding-bottom: 0;
+    padding-right: 280px;
+  }
+  .touch-layout .touch-adjustments {
+    padding: 8px 12px;
+  }
+  .touch-layout .sheet-size-toggle {
+    font-size: 10px;
+  }
+  .touch-layout .panel-topbar > span {
+    font-size: 11px;
+  }
+  .touch-layout .sliders {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 1001px) and (min-height: 501px) {
+  .touch-layout .tool-panel {
+    top: calc(56px + env(safe-area-inset-top));
+    left: auto;
+    width: 300px;
+    height: auto;
+    border-radius: 12px 0 0 0;
+    transform: translateX(100%);
+  }
+  .touch-layout .tool-panel.mobile-open {
+    transform: translateX(0);
+  }
+  .app-shell.touch-layout:has(.tool-panel.mobile-open) .workspace-main {
+    padding-bottom: 0;
+    padding-right: 300px;
+  }
+  .touch-layout .touch-adjustments,
+  .touch-layout .sheet-size-toggle {
+    display: none;
+  }
+  .touch-layout .full-tool-controls {
+    display: block;
+  }
+  .touch-layout .sliders {
+    grid-template-columns: 1fr;
+  }
+}
+.touch-layout :is(.modal, .full-tool-controls) input[type="color"] {
+  width: 44px;
+  height: 44px;
+}
+.touch-layout
+  :is(.modal, .full-tool-controls)
+  input:not([type="range"]):not([type="color"]):not([type="checkbox"]) {
+  font-size: 16px;
+  min-height: 44px;
+}
+.touch-layout .modal .camera-direction button {
+  min-height: 44px;
+}
+@media (max-width: 360px) {
+  .touch-layout .open-button {
+    min-width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .touch-layout .open-button > span {
+    display: none;
+  }
+}
+/* An in-app expanded view also works in installed PWAs and iOS Safari. */
+.app-shell.preview-focus {
+  min-height: 0;
+}
+.app-shell.preview-focus
+  :is(
+    .topbar,
+    .rail,
+    .workspace-heading,
+    .looks-section,
+    .workspace-footer,
+    .tool-panel,
+    .mobile-nav
+  ) {
+  display: none;
+}
+.app-shell.preview-focus .editor-layout {
+  display: flex;
+}
+.app-shell.preview-focus .workspace-main,
+.app-shell.touch-layout.preview-focus:has(.tool-panel.mobile-open)
+  .workspace-main {
+  width: 100%;
+  padding: 0;
+}
+.app-shell.preview-focus .canvas-section {
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  background: #131713;
+}
+.app-shell.preview-focus .canvas-topline {
+  display: none;
+}
+.app-shell.preview-focus .canvas-bottomline {
+  flex-shrink: 0;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding: 0 12px env(safe-area-inset-bottom);
+  justify-content: center;
+}
+.app-shell.preview-focus .image-meta {
+  display: none;
+}
+.app-shell.preview-focus .zoom-controls {
+  gap: 8px;
+}
+.app-shell.preview-focus .zoom-controls .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.focus-preview-bar {
+  position: absolute;
+  z-index: 3;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+.focus-preview-bar button {
+  pointer-events: auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #263020e8;
+  color: #dcebcf;
+  font-size: 13px;
+}
+.focus-preview-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #dcebcf;
+  text-shadow: 0 1px 5px #000;
+}

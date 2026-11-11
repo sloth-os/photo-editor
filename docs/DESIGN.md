@@ -16,7 +16,9 @@ The photograph is the center of attention. Editing uses Snapseed's recognizable 
 
 On desktop, the left rail switches editing context, the center holds the photo and a horizontal Look strip, and the right side hosts one focused tool. All tools are searchable in a categorized modal. A real image histogram gives tonal context without crowding the photograph.
 
-On phones, the rail becomes a bottom toolbar. Adjustments open in a bounded, scrollable bottom sheet; the canvas resizes above the sheet so the entire photo remains visible. Touch input supports brush strokes, crop corners, local-control placement, pinch zoom, and panning. Dialogs fit the viewport and trap keyboard focus. Inputs, range sliders, selected states, and icon buttons have accessible names; reduced-motion preferences are honored.
+On phones and coarse-pointer devices, the photograph fills the available width and the rail becomes a bottom toolbar. The default adjustment dock is 184 px tall and presents one large slider with a parameter chooser. More controls opens the full inspector; More photo restores the compact view. Wide landscape tablets place the full inspector at the side. The canvas resizes around either panel. Decorative Looks and metadata rows give way to photo space, while save status stays by the filename.
+
+Expanded preview fills the viewport and preserves pending adjustments. It uses an in-app view so it also works in installed PWAs and browsers without a fullscreen API. Pinch zoom is anchored at the gesture midpoint; two-finger panning works in every tool and cancels tentative brush marks from the first contact. One-finger strokes and taps remain available, and an explicit Pan button supports other pointing devices. Zoom is bounded to 1–8× and panning keeps the photo in reach. Touch sliders, important buttons, and crop handles have 44 px hit areas, with 24 px slider thumbs. Dialogs fit the viewport and trap keyboard focus; reduced-motion preferences and device safe areas are honored.
 
 ## Visual direction
 

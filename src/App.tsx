@@ -25,6 +25,9 @@ import {
   Lightbulb,
   LoaderCircle,
   Maximize2,
+  Minimize2,
+  ChevronUp,
+  Hand,
   Minus,
   MoreHorizontal,
   Plus,
@@ -94,6 +97,7 @@ import {
   Slider,
 } from "./components/ui";
 import ToolControls from "./components/ToolControls";
+import TouchAdjustments from "./components/TouchAdjustments";
 import { analyze, cancelAnalysis } from "./lib/intelligence";
 import { prepareBatchEdits } from "./lib/batch";
 import { faceRegion } from "./lib/face-mesh";
@@ -190,6 +194,18 @@ export default function App() {
   const [mobilePanel, setMobilePanel] = useState(false),
     [recipes, setRecipes] = useState<Recipe[]>([]),
     [recipeName, setRecipeName] = useState("My everyday look");
+  const [touchLayout, setTouchLayout] = useState(
+      () => window.matchMedia("(max-width: 1000px), (pointer: coarse)").matches,
+    ),
+    [panelExpanded, setPanelExpanded] = useState(false),
+    [focusPreview, setFocusPreview] = useState(false),
+    [panMode, setPanMode] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1000px), (pointer: coarse)");
+    const update = () => setTouchLayout(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const [format, setFormat] = useState("image/jpeg"),
     [quality, setQuality] = useState(95),
     [exportSize, setExportSize] = useState("original");
@@ -219,8 +235,19 @@ export default function App() {
     pan: { x: number; y: number };
     corner?: string;
     params?: Params;
+    touchPending?: boolean;
+    startCount?: number;
+    wasDirty?: boolean;
   } | null>(null);
-  const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+  const touchPointers = useRef(new Map<number, { x: number; y: number }>()),
+    pendingTap = useRef<{ x: number; y: number } | null>(null),
+    pinch = useRef<{
+      distance: number;
+      zoom: number;
+      pan: { x: number; y: number };
+      midpoint: { x: number; y: number };
+      center: { x: number; y: number };
+    } | null>(null);
   const stack = history[cursor].edits,
     tool = tools.find((t) => t.id === active?.tool) || tools[0];
   const previewEdits = useMemo(
@@ -519,6 +546,8 @@ export default function App() {
     setRail("edit");
     setDialog(null);
     setMobilePanel(true);
+    setPanelExpanded(false);
+    setPanMode(false);
     setShowOriginal(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -759,6 +788,12 @@ export default function App() {
         e.preventDefault();
         setShowOriginal((v) => !v);
       } else if (e.key === "Escape") {
+        if (focusPreview) {
+          setFocusPreview(false);
+          setZoom(1);
+          setPan({ x: 0, y: 0 });
+          return;
+        }
         setShowOriginal(false);
         setMobilePanel(false);
         setActive(freshEdit(tool.id));
@@ -811,9 +846,28 @@ export default function App() {
     });
     setDirty(true);
   }
-  function pointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    if (e.button !== 0 || showOriginal || !active) return;
+  function pointerDown(
+    e: ReactPointerEvent<HTMLDivElement>,
+    commitTouch = false,
+  ) {
+    if (e.button !== 0 || pinch.current || !active) return;
+    if (panMode) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = { type: "pan", x: e.clientX, y: e.clientY, pan };
+      return;
+    }
+    if (showOriginal) return;
     const corner = (e.target as HTMLElement).dataset.corner;
+    if (
+      e.pointerType === "touch" &&
+      !commitTouch &&
+      !corner &&
+      !["brush", "healing"].includes(active.tool)
+    ) {
+      pendingTap.current = { x: e.clientX, y: e.clientY };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
     if (active.tool === "white-balance" && active.params.pick) {
       const pos = point(e),
         c = canvasRef.current!,
@@ -856,8 +910,16 @@ export default function App() {
     }
     if (["brush", "healing"].includes(active.tool)) {
       e.currentTarget.setPointerCapture(e.pointerId);
-      drag.current = { type: "paint", x: e.clientX, y: e.clientY, pan };
-      paint(e);
+      drag.current = {
+        type: "paint",
+        x: e.clientX,
+        y: e.clientY,
+        pan,
+        touchPending: e.pointerType === "touch",
+        startCount: active.points?.length || 0,
+        wasDirty: dirty,
+      };
+      if (e.pointerType !== "touch") paint(e);
     } else if (
       [
         "selective",
@@ -886,17 +948,32 @@ export default function App() {
         },
       });
       setDirty(true);
-    } else if (zoom > 1) {
+    } else if (zoom > 1 && !commitTouch) {
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = { type: "pan", x: e.clientX, y: e.clientY, pan };
     }
   }
   function pointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (pinch.current) return;
+    const tap = pendingTap.current;
+    if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 8) {
+      pendingTap.current = null;
+      if (zoom > 1) drag.current = { type: "pan", x: tap.x, y: tap.y, pan };
+    }
     const d = drag.current;
     if (!d) return;
-    if (d.type === "paint") paint(e);
-    else if (d.type === "pan")
-      setPan({ x: d.pan.x + e.clientX - d.x, y: d.pan.y + e.clientY - d.y });
+    if (d.type === "paint") {
+      if (d.touchPending && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3)
+        return;
+      d.touchPending = false;
+      paint(e);
+    } else if (d.type === "pan")
+      setPan(
+        limitPan(
+          { x: d.pan.x + e.clientX - d.x, y: d.pan.y + e.clientY - d.y },
+          zoom,
+        ),
+      );
     else if (d.type === "crop" && active && d.params) {
       const rect = photoRef.current!.getBoundingClientRect(),
         dx = ((e.clientX - d.x) / rect.width) * 100,
@@ -924,6 +1001,104 @@ export default function App() {
         );
       setActive({ ...active, params: p });
       setDirty(true);
+    }
+  }
+  function pointerUp(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!pinch.current) {
+      if (drag.current?.type === "paint" && drag.current.touchPending) paint(e);
+      if (pendingTap.current) pointerDown(e, true);
+    }
+    drag.current = null;
+    pendingTap.current = null;
+  }
+  function touchStart(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== "touch") return;
+    touchPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPointers.current.size === 2) {
+      const [a, b] = [...touchPointers.current.values()],
+        rect = e.currentTarget.getBoundingClientRect(),
+        stroke = drag.current;
+      // A second finger turns the whole gesture into navigation, including its first contact.
+      if (stroke?.type === "paint") {
+        setActive((previous) =>
+          previous
+            ? {
+                ...previous,
+                points: previous.points?.slice(0, stroke.startCount || 0),
+              }
+            : previous,
+        );
+        setDirty(stroke.wasDirty || false);
+      }
+      drag.current = null;
+      pendingTap.current = null;
+      pinch.current = {
+        distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        zoom,
+        pan,
+        midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        center: {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        },
+      };
+      for (const id of touchPointers.current.keys())
+        e.currentTarget.setPointerCapture(id);
+    }
+    if (pinch.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+  function touchMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== "touch") return;
+    if (touchPointers.current.has(e.pointerId))
+      touchPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const gesture = pinch.current;
+    if (!gesture) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (touchPointers.current.size < 2) return;
+    const [a, b] = [...touchPointers.current.values()],
+      nextZoom = Math.max(
+        1,
+        Math.min(
+          8,
+          (gesture.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / gesture.distance,
+        ),
+      ),
+      ratio = nextZoom / gesture.zoom;
+    setZoom(nextZoom);
+    setPan(
+      limitPan(
+        {
+          x:
+            gesture.pan.x +
+            (a.x + b.x) / 2 -
+            gesture.midpoint.x +
+            (gesture.midpoint.x - gesture.center.x - gesture.pan.x) *
+              (1 - ratio),
+          y:
+            gesture.pan.y +
+            (a.y + b.y) / 2 -
+            gesture.midpoint.y +
+            (gesture.midpoint.y - gesture.center.y - gesture.pan.y) *
+              (1 - ratio),
+        },
+        nextZoom,
+      ),
+    );
+  }
+  function touchEnd(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== "touch") return;
+    touchPointers.current.delete(e.pointerId);
+    if (pinch.current) {
+      e.stopPropagation();
+      if (!touchPointers.current.size) pinch.current = null;
+    }
+    if (e.type === "pointercancel") {
+      drag.current = null;
+      pendingTap.current = null;
     }
   }
   async function addOverlay(file: File) {
@@ -1198,11 +1373,29 @@ export default function App() {
     } else setDialog("help");
   }
   const fit = Math.min(
-    (stageSize.width - (stageSize.width < 600 ? 28 : 88)) / outputSize.width,
-    (stageSize.height - (stageSize.width < 600 ? 20 : 44)) / outputSize.height,
+    (stageSize.width -
+      (touchLayout || focusPreview ? 8 : stageSize.width < 600 ? 28 : 88)) /
+      outputSize.width,
+    (stageSize.height -
+      (touchLayout || focusPreview ? 8 : stageSize.width < 600 ? 20 : 44)) /
+      outputSize.height,
   );
   const displayWidth = Math.max(1, outputSize.width * Math.max(0.01, fit)),
     displayHeight = Math.max(1, outputSize.height * Math.max(0.01, fit));
+  function limitPan(value: { x: number; y: number }, scale: number) {
+    const x = Math.max(0, (displayWidth * scale - stageSize.width) / 2),
+      y = Math.max(0, (displayHeight * scale - stageSize.height) / 2);
+    return {
+      x: Math.max(-x, Math.min(x, value.x)),
+      y: Math.max(-y, Math.min(y, value.y)),
+    };
+  }
+  useEffect(() => {
+    setPan((previous) => {
+      const next = limitPan(previous, zoom);
+      return next.x === previous.x && next.y === previous.y ? previous : next;
+    });
+  }, [stageSize.width, stageSize.height, displayWidth, displayHeight, zoom]);
   const cropped = active?.tool === "crop",
     local =
       active &&
@@ -1222,7 +1415,7 @@ export default function App() {
 
   return (
     <div
-      className="app-shell"
+      className={`app-shell ${touchLayout ? "touch-layout" : ""} ${focusPreview ? "preview-focus" : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -1304,6 +1497,7 @@ export default function App() {
           </button>
           <button
             className="secondary-button open-button"
+            aria-label="Open photo"
             onClick={() => fileRef.current?.click()}
           >
             <FolderOpen size={16} />
@@ -1411,10 +1605,20 @@ export default function App() {
                   {photo?.name.replace(/\.[^.]+$/, "") ||
                     "Your next favorite photo"}
                 </h1>
-                <p>
-                  {photo?.raw
-                    ? "RAW · Developed on your device"
-                    : "A moment worth making your own."}
+                <p
+                  className={
+                    touchLayout ? `touch-save-status ${saveState}` : undefined
+                  }
+                >
+                  {touchLayout
+                    ? saveState === "saved"
+                      ? "Saved on this device"
+                      : saveState === "saving"
+                        ? "Saving on this device…"
+                        : "Storage unavailable · export to keep your work"
+                    : photo?.raw
+                      ? "RAW · Developed on your device"
+                      : "A moment worth making your own."}
                 </p>
               </div>
               <button
@@ -1456,6 +1660,20 @@ export default function App() {
             className={`canvas-section ${showOriginal ? "showing-original" : ""}`}
             aria-label="Photo editing canvas"
           >
+            {focusPreview && (
+              <div className="focus-preview-bar">
+                <button
+                  onClick={() => {
+                    setFocusPreview(false);
+                    setZoom(1);
+                    setPan({ x: 0, y: 0 });
+                  }}
+                >
+                  <Minimize2 size={20} /> Back to editor
+                </button>
+                <span>{photo?.name.replace(/\.[^.]+$/, "")}</span>
+              </div>
+            )}
             <div className="canvas-topline">
               <div>
                 <span className="tiny-dot" />
@@ -1476,39 +1694,10 @@ export default function App() {
             <div
               className="image-stage"
               ref={stageRef}
-              onTouchStart={(e) => {
-                if (e.touches.length === 2) {
-                  drag.current = null;
-                  pinch.current = {
-                    distance: Math.hypot(
-                      e.touches[0].clientX - e.touches[1].clientX,
-                      e.touches[0].clientY - e.touches[1].clientY,
-                    ),
-                    zoom,
-                  };
-                }
-              }}
-              onTouchMove={(e) => {
-                if (e.touches.length === 2 && pinch.current) {
-                  const distance = Math.hypot(
-                    e.touches[0].clientX - e.touches[1].clientX,
-                    e.touches[0].clientY - e.touches[1].clientY,
-                  );
-                  setZoom(
-                    Math.max(
-                      1,
-                      Math.min(
-                        4,
-                        (pinch.current.zoom * distance) /
-                          pinch.current.distance,
-                      ),
-                    ),
-                  );
-                }
-              }}
-              onTouchEnd={() => {
-                pinch.current = null;
-              }}
+              onPointerDownCapture={touchStart}
+              onPointerMoveCapture={touchMove}
+              onPointerUpCapture={touchEnd}
+              onPointerCancelCapture={touchEnd}
             >
               {photo ? (
                 <div
@@ -1521,11 +1710,10 @@ export default function App() {
                   }}
                   onPointerDown={pointerDown}
                   onPointerMove={pointerMove}
-                  onPointerUp={() => {
-                    drag.current = null;
-                  }}
+                  onPointerUp={pointerUp}
                   onPointerCancel={() => {
                     drag.current = null;
+                    pendingTap.current = null;
                   }}
                 >
                   <canvas
@@ -1606,6 +1794,11 @@ export default function App() {
                   </button>
                 </div>
               )}
+              {touchLayout && zoom === 1 && !focusPreview && (
+                <span className="touch-gesture-hint">
+                  Pinch to zoom · two fingers to move
+                </span>
+              )}
             </div>
             <div className="canvas-bottomline">
               <div className="image-meta">
@@ -1649,17 +1842,30 @@ export default function App() {
                 <IconButton
                   icon={Plus}
                   label="Zoom in"
-                  onClick={() => setZoom((v) => Math.min(4, v + 0.25))}
-                  disabled={zoom >= 4}
+                  onClick={() => setZoom((v) => Math.min(8, v + 0.25))}
+                  disabled={zoom >= 8}
                 />
+                <button
+                  className={`icon-button pan-toggle ${panMode ? "is-active" : ""}`}
+                  aria-label="Pan photo"
+                  aria-pressed={panMode}
+                  title="Pan photo"
+                  onClick={() => setPanMode((v) => !v)}
+                >
+                  <Hand size={20} />
+                </button>
                 <span className="vertical-divider" />
                 <IconButton
-                  icon={Maximize2}
-                  label="Reset photo view"
+                  icon={focusPreview ? Minimize2 : Maximize2}
+                  label={
+                    focusPreview
+                      ? "Exit expanded preview"
+                      : "Expand photo preview"
+                  }
                   onClick={() => {
                     setZoom(1);
                     setPan({ x: 0, y: 0 });
-                    setMobilePanel(false);
+                    setFocusPreview((v) => !v);
                   }}
                 />
               </div>
@@ -1724,12 +1930,16 @@ export default function App() {
           </footer>
         </main>
         <aside
-          className={`tool-panel ${mobilePanel ? "mobile-open" : ""}`}
+          className={`tool-panel ${mobilePanel ? "mobile-open" : ""} ${panelExpanded ? "sheet-expanded" : ""} ${rail === "history" ? "history-panel" : ""}`}
           aria-label="Editing tools"
         >
           <div className="panel-topbar">
             <span>
-              {rail === "history" ? "Your edit stack" : "The little details"}
+              {rail === "history"
+                ? "Your edit stack"
+                : touchLayout
+                  ? tool.name
+                  : "The little details"}
             </span>
             <button
               className="all-tools-button"
@@ -1740,8 +1950,23 @@ export default function App() {
             >
               <Grid2X2 size={14} /> All tools <span>{tools.length}</span>
             </button>
+            {touchLayout && rail !== "history" && (
+              <button
+                className="sheet-size-toggle"
+                aria-expanded={panelExpanded}
+                aria-controls="full-tool-controls"
+                onClick={() => setPanelExpanded((v) => !v)}
+              >
+                {panelExpanded ? (
+                  <ChevronDown size={16} />
+                ) : (
+                  <ChevronUp size={16} />
+                )}
+                {panelExpanded ? "More photo" : "More controls"}
+              </button>
+            )}
             <IconButton
-              icon={ChevronDown}
+              icon={X}
               label="Collapse adjustments"
               className="mobile-close"
               onClick={() => setMobilePanel(false)}
@@ -1846,7 +2071,23 @@ export default function App() {
             </>
           ) : (
             <>
-              <div className="panel-scroll">
+              {touchLayout && (
+                <TouchAdjustments
+                  key={tool.id}
+                  tool={tool}
+                  edit={active || freshEdit("tune")}
+                  setParam={setParam}
+                  onExpand={() => setPanelExpanded(true)}
+                  onOverlay={(file) => void addOverlay(file)}
+                  onCollage={(files) => void addCollageFiles(files)}
+                  onAnalyze={(kind) => void analyzePhoto(kind)}
+                  onAuto={autoAdjust}
+                />
+              )}
+              <div
+                className="panel-scroll full-tool-controls"
+                id="full-tool-controls"
+              >
                 <div className="tool-title">
                   <div className="tool-category">
                     <span className="eyebrow">{tool.group.toUpperCase()}</span>
@@ -1974,6 +2215,7 @@ export default function App() {
           className={mobilePanel ? "selected" : ""}
           onClick={() => {
             setRail("edit");
+            setPanelExpanded(false);
             setMobilePanel((v) => !v);
           }}
         >

@@ -640,6 +640,9 @@ test("new composition controls fit mobile screens while keeping the photo visibl
     ),
   ).toBe(true);
   await tool(page, "Stickers & overlay");
+  await page
+    .getByRole("button", { name: "More controls", exact: true })
+    .click();
   await page.getByRole("button", { name: "Flower", exact: true }).click();
   await slider(page, "Rotation", -45);
   await apply(page);
