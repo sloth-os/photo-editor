@@ -1,4 +1,7 @@
-import type LibRaw from "libraw-wasm";
+import { parseXmp } from "./presets";
+import { decodeLookPayload } from "./snapseed";
+import { developRaw, rawMetadata } from "./raw";
+import { readMetadata, type CameraMetadata } from "./metadata";
 import { canvas, fitDimensions, loadImage, toBlob } from "./engine";
 import type { Edit, Params } from "./catalog";
 import { defaults, tools, looks } from "./catalog";
@@ -16,6 +19,8 @@ export type Photo = {
   height: number;
   size: number;
   raw: boolean;
+  rawSource?: Blob;
+  metadata?: CameraMetadata;
 };
 
 export async function readPhoto(file: File): Promise<Photo> {
@@ -26,44 +31,15 @@ export async function readPhoto(file: File): Promise<Photo> {
   let blob: Blob = file;
   const raw = isRaw(file.name);
   if (raw) {
-    const module = (await import(
-      /* @vite-ignore */ `${import.meta.env.BASE_URL}vendor/libraw/index.js`
-    )) as { default: typeof LibRaw };
-    const decoder = new module.default();
     try {
-      await decoder.open(new Uint8Array(await file.arrayBuffer()), {
-        useCameraWb: true,
-        outputBps: 8,
-        outputColor: 1,
-        halfSize: file.size > 35 * 1024 * 1024,
-      });
-      const result = await decoder.imageData();
-      if (!result || !result.width || !result.height)
-        throw new Error("No image data was found in this RAW file.");
-      if (result.width * result.height > 40_000_000)
-        throw new Error(
-          "Decoded RAW is over 40 megapixels. Export a smaller DNG and try again.",
-        );
-      const rgba = new Uint8ClampedArray(result.width * result.height * 4);
-      for (let i = 0, j = 0; i < rgba.length; i += 4, j += result.colors) {
-        rgba[i] = result.data[j];
-        rgba[i + 1] = result.data[j + 1] ?? result.data[j];
-        rgba[i + 2] = result.data[j + 2] ?? result.data[j];
-        rgba[i + 3] = 255;
-      }
-      const c = canvas(result.width, result.height);
-      c.getContext("2d")!.putImageData(
-        new ImageData(rgba, result.width, result.height),
-        0,
-        0,
-      );
+      const image = await developRaw(file),
+        c = canvas(image.naturalWidth, image.naturalHeight);
+      c.getContext("2d")!.drawImage(image, 0, 0);
       blob = await toBlob(c, "image/png");
     } catch (error) {
       throw new Error(
         `Could not develop this RAW file. ${error instanceof Error ? error.message : "This camera format may not be supported."}`,
       );
-    } finally {
-      decoder.dispose();
     }
   } else if (
     !file.type.startsWith("image/") &&
@@ -97,6 +73,8 @@ export async function readPhoto(file: File): Promise<Photo> {
       height: image.naturalHeight,
       size: file.size,
       raw,
+      rawSource: raw ? file : undefined,
+      metadata: raw ? rawMetadata(file) : await readMetadata(file),
     };
   } finally {
     URL.revokeObjectURL(url);
@@ -117,7 +95,13 @@ export function fileSize(size: number) {
     : `${Math.round(size / 1024)} KB`;
 }
 
-export type Recipe = { version: 1; name: string; edits: Edit[] };
+export type Recipe = {
+  version: 1;
+  name: string;
+  edits: Edit[];
+  nativeSnapseed?: string;
+  warnings?: string[];
+};
 export function validateRecipe(value: unknown): Recipe {
   if (!value || typeof value !== "object")
     throw new Error("This is not a Still look.");
@@ -158,8 +142,95 @@ export function validateRecipe(value: unknown): Recipe {
     if (edit.tool === "look" && !looks.some((l) => l.id === p.look))
       throw new Error("This look references an unknown filter.");
     if (edit.tool === "lut" && p.cube) parseCube(String(p.cube));
+    if (
+      p.lutPng &&
+      !(
+        typeof p.lutPng === "string" &&
+        /^data:image\/png;base64,/.test(p.lutPng)
+      )
+    )
+      throw new Error("LUT images must be embedded PNG files.");
+    if (edit.tool === "curves")
+      for (const key of ["curveRGB", "curveRed", "curveGreen", "curveBlue"])
+        if (p[key]) {
+          let points: unknown;
+          try {
+            points = JSON.parse(String(p[key]));
+          } catch {
+            throw new Error("Invalid tone curve in this look.");
+          }
+          if (
+            !Array.isArray(points) ||
+            points.length < 2 ||
+            points.length > 64 ||
+            points.some(
+              (point, i) =>
+                !Array.isArray(point) ||
+                point.length !== 2 ||
+                !point.every(
+                  (v) =>
+                    typeof v === "number" &&
+                    Number.isFinite(v) &&
+                    v >= 0 &&
+                    v <= 1,
+                ) ||
+                (i > 0 && point[0] <= points![i - 1][0]),
+            )
+          )
+            throw new Error("Invalid tone curve in this look.");
+        }
     if (edit.image && !/^data:image\/(png|jpeg|webp);base64,/.test(edit.image))
       throw new Error("Only embedded image overlays are allowed in looks.");
+    for (const field of ["mask", "depth"] as const)
+      if (
+        edit[field] &&
+        (typeof edit[field] !== "string" ||
+          edit[field]!.length > 8 * 1024 * 1024 ||
+          !/^data:image\/(png|jpeg|webp);base64,/.test(edit[field]!))
+      )
+        throw new Error(
+          "Only embedded masks and depth maps are allowed in looks.",
+        );
+    if (
+      edit.faces &&
+      (!Array.isArray(edit.faces) ||
+        edit.faces.length > 5 ||
+        edit.faces.some(
+          (face) =>
+            !Array.isArray(face) ||
+            face.length < 468 ||
+            face.length > 478 ||
+            face.some(
+              (point) =>
+                !point ||
+                ![point.x, point.y, point.z].every(
+                  (v) =>
+                    typeof v === "number" &&
+                    Number.isFinite(v) &&
+                    Math.abs(v) <= 5,
+                ),
+            ),
+        ))
+    )
+      throw new Error("Invalid face landmarks in this look.");
+    if (
+      edit.mesh &&
+      (!Array.isArray(edit.mesh) ||
+        edit.mesh.length > 2000 ||
+        !edit.faces?.length ||
+        edit.mesh.some(
+          (triangle) =>
+            !Array.isArray(triangle) ||
+            triangle.length !== 3 ||
+            triangle.some(
+              (index) =>
+                !Number.isInteger(index) ||
+                index < 0 ||
+                edit.faces!.some((face) => index >= face.length),
+            ),
+        ))
+    )
+      throw new Error("Invalid face mesh in this look.");
     const points = edit.points;
     if (
       points &&
@@ -184,46 +255,38 @@ export function validateRecipe(value: unknown): Recipe {
       throw new Error("Invalid brush strokes in this look.");
     return { ...edit, id: crypto.randomUUID(), params: p };
   });
-  return { version: 1, name: r.name, edits };
-}
-
-export function parseXmp(text: string): Recipe {
-  const xml = new DOMParser().parseFromString(text, "application/xml");
-  if (xml.querySelector("parsererror")) throw new Error("Invalid XMP file.");
-  const p = defaults("tune"),
-    map: Record<string, string> = {
-      Exposure2012: "exposure",
-      Contrast2012: "contrast",
-      Highlights2012: "highlights",
-      Shadows2012: "shadows",
-      Saturation: "saturation",
-      Vibrance: "ambiance",
-      Temperature: "warmth",
-    };
-  let count = 0;
-  for (const el of Array.from(xml.getElementsByTagName("*")))
-    for (const attr of Array.from(el.attributes)) {
-      const key = map[attr.localName],
-        v = Number(attr.value);
-      if (!key || !Number.isFinite(v)) continue;
-      const adjusted =
-        attr.localName === "Temperature"
-          ? (v - 5500) / 50
-          : attr.localName === "Exposure2012"
-            ? v * 35
-            : v;
-      p[key] = Math.max(-100, Math.min(100, adjusted));
-      count++;
-    }
-  if (!count)
-    throw new Error(
-      "No supported Camera Raw tone settings were found in this XMP.",
-    );
   return {
     version: 1,
-    name: "Imported XMP",
-    edits: [{ id: crypto.randomUUID(), tool: "tune", params: p }],
+    name: r.name,
+    edits,
+    ...(typeof r.nativeSnapseed === "string" &&
+    r.nativeSnapseed.length < 200000 &&
+    /^https:\/\/(www\.)?snapseed\.com\/qr\?l=/.test(r.nativeSnapseed)
+      ? { nativeSnapseed: r.nativeSnapseed }
+      : {}),
+    ...(Array.isArray(r.warnings)
+      ? {
+          warnings: r.warnings
+            .filter((v) => typeof v === "string")
+            .slice(0, 10)
+            .map((v) => v.slice(0, 500)),
+        }
+      : {}),
   };
+}
+
+export { parseXmp } from "./presets";
+/** The 200-edit interchange limit must never discard a larger local project. */
+export function validateProjectEdits(edits: Edit[]): Edit[] {
+  if (!Array.isArray(edits)) throw new Error("Invalid saved edit stack.");
+  return edits.flatMap(
+    (edit) =>
+      validateRecipe({
+        version: 1,
+        name: "Recovered adjustment",
+        edits: [edit],
+      }).edits,
+  );
 }
 
 export async function fileToDataUrl(file: File): Promise<string> {
@@ -244,7 +307,7 @@ export async function pngToCube(file: File): Promise<string> {
     size ** 3 !== photo.width * photo.height
   )
     throw new Error(
-      "Use a square Hald CLUT PNG (8×8, 27×27, 64×64, 125×125, 216×216, 343×343, or 512×512). Tiled LUT images are not supported.",
+      "Use a square LUT PNG (8×8, 27×27, 64×64, 125×125, 216×216, 343×343, or 512×512). Choose Hald or tiled layout after import.",
     );
   const c = canvas(photo.width, photo.height),
     ctx = c.getContext("2d")!;
@@ -256,6 +319,15 @@ export async function pngToCube(file: File): Promise<string> {
       `${(data[i] / 255).toFixed(5)} ${(data[i + 1] / 255).toFixed(5)} ${(data[i + 2] / 255).toFixed(5)}`,
     );
   return rows.join("\n");
+}
+export async function blobDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () =>
+      reject(new Error("The local file could not be read."));
+    reader.readAsDataURL(file);
+  });
 }
 
 export async function importLookFile(file: File): Promise<Recipe[]> {
@@ -329,7 +401,7 @@ export async function importLookFile(file: File): Promise<Recipe[]> {
     ctx.drawImage(p.image, 0, 0, c.width, c.height);
     const data = ctx.getImageData(0, 0, c.width, c.height),
       code = jsQR(data.data, c.width, c.height);
-    if (code) return [validateRecipe(JSON.parse(code.data))];
+    if (code) return [validateRecipe(await decodeLookPayload(code.data))];
     if (/\.png$/i.test(file.name)) {
       const cube = await pngToCube(file);
       return [
@@ -340,7 +412,13 @@ export async function importLookFile(file: File): Promise<Recipe[]> {
             {
               id: crypto.randomUUID(),
               tool: "lut",
-              params: { strength: 100, cube, lutName: file.name },
+              params: {
+                strength: 100,
+                cube,
+                lutName: file.name,
+                lutPng: await blobDataUrl(file),
+                lutLayout: "hald",
+              },
             },
           ],
         },
@@ -348,7 +426,8 @@ export async function importLookFile(file: File): Promise<Recipe[]> {
     }
     throw new Error("No Still QR look was found in this image.");
   }
-  if (/\.xmp$/i.test(file.name)) return [parseXmp(await file.text())];
+  if (/\.xmp$/i.test(file.name))
+    return [validateRecipe(parseXmp(await file.text()))];
   if (/\.cube$/i.test(file.name)) {
     const cube = await file.text();
     parseCube(cube);
@@ -366,5 +445,5 @@ export async function importLookFile(file: File): Promise<Recipe[]> {
       },
     ];
   }
-  return [validateRecipe(JSON.parse(await file.text()))];
+  return [validateRecipe(await decodeLookPayload(await file.text()))];
 }

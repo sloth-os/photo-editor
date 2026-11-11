@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "looks": [
+    {
+      "id": "still-1",
+      "name": "Quiet morning",
+      "username": "Still studio",
+      "description": "A softer start to the day.",
+      "tags": ["landscape", "warm"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Quiet morning",
+        "edits": [
+          {
+            "id": "0-0",
+            "tool": "tune",
+            "params": {
+              "brightness": 6,
+              "ambiance": 14,
+              "shadows": 12,
+              "warmth": 9
+            }
+          },
+          {
+            "id": "0-1",
+            "tool": "bloom",
+            "params": {
+              "strength": 18,
+              "radius": 30,
+              "threshold": 70
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "still-2",
+      "name": "Silver story",
+      "username": "Still studio",
+      "description": "Every shade has something to say.",
+      "tags": ["monochrome", "street"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Silver story",
+        "edits": [
+          {
+            "id": "1-0",
+            "tool": "bw",
+            "params": {
+              "contrast": 25,
+              "grain": 10
+            }
+          },
+          {
+            "id": "1-1",
+            "tool": "curves",
+            "params": {
+              "shadows": -10,
+              "highlights": 8
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "still-3",
+      "name": "Golden hour",
+      "username": "Still studio",
+      "description": "Keep a little of the evening light.",
+      "tags": ["warm", "portrait"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Golden hour",
+        "edits": [
+          {
+            "id": "2-0",
+            "tool": "color-grade",
+            "params": {
+              "shadowHue": 215,
+              "shadowSat": 10,
+              "midHue": 35,
+              "midSat": 18,
+              "highHue": 45,
+              "highSat": 25
+            }
+          },
+          {
+            "id": "2-1",
+            "tool": "grain",
+            "params": {
+              "grain": 14,
+              "strength": 12
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "still-4",
+      "name": "Forest notes",
+      "username": "Still studio",
+      "description": "Deep greens, gentle light.",
+      "tags": ["nature", "green"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Forest notes",
+        "edits": [
+          {
+            "id": "3-0",
+            "tool": "hsl",
+            "params": {
+              "range": "green",
+              "hue": -8,
+              "saturation": 15,
+              "luminance": -8
+            }
+          },
+          {
+            "id": "3-1",
+            "tool": "tune",
+            "params": {
+              "contrast": 12,
+              "shadows": 16
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "still-5",
+      "name": "Soft portrait",
+      "username": "Still studio",
+      "description": "A warm, easy kind of light.",
+      "tags": ["portrait", "soft"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Soft portrait",
+        "edits": [
+          {
+            "id": "4-0",
+            "tool": "tune",
+            "params": {
+              "highlights": -12,
+              "shadows": 10,
+              "saturation": -6
+            }
+          },
+          {
+            "id": "4-1",
+            "tool": "glamour",
+            "params": {
+              "glow": 15,
+              "warmth": 5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "still-6",
+      "name": "Cinematic dusk",
+      "username": "Still studio",
+      "description": "A little cool in the shadows.",
+      "tags": ["cinematic", "moody"],
+      "likes": 0,
+      "recipe": {
+        "version": 1,
+        "name": "Cinematic dusk",
+        "edits": [
+          {
+            "id": "5-0",
+            "tool": "color-grade",
+            "params": {
+              "shadowHue": 205,
+              "shadowSat": 32,
+              "midHue": 25,
+              "midSat": 8,
+              "highHue": 35,
+              "highSat": 20
+            }
+          },
+          {
+            "id": "5-1",
+            "tool": "curves",
+            "params": {
+              "blacks": 8,
+              "midtones": -5,
+              "whites": -7
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

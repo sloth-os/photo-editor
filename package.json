@@ -8,14 +8,18 @@
     "dev": "node scripts/prepare-assets.mjs && vite --host 0.0.0.0",
     "build": "node scripts/prepare-assets.mjs && tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run",
+    "test": "vitest run && node --test server/*.test.mjs",
+    "community:server": "node server/index.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.2",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.2",
     "libraw-wasm": "^1.6.0",
     "lucide-react": "^0.468.0",
+    "onnxruntime-web": "^1.22.0",
+    "piexifjs": "^1.0.6",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.0.0",
+    "@types/piexifjs": "^1.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

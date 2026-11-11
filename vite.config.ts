@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  worker: { format: "es" },
   base: process.env.BASE_PATH || "/",
   plugins: [
     react(),
@@ -67,9 +68,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: [
-          "**/*.{js,css,html,ico,png,svg,jpg,ttf,wasm,webmanifest,txt}",
+          "**/*.{js,mjs,css,html,ico,png,svg,jpg,ttf,wasm,webmanifest,txt,tflite,task,onnx,json}",
         ],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 40 * 1024 * 1024,
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
         clientsClaim: true,

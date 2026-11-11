@@ -37,3 +37,23 @@ https://github.com/cozmo/jsQR
 Vite, TypeScript, Vite PWA plugin and Workbox are used for building and caching.
 Their respective license texts, and direct runtime dependency licenses, are
 included in the generated licenses/ folder.
+
+Local intelligence and metadata additions:
+MediaPipe Tasks Vision / DeepLab V3 / Face Landmarker:
+Google / MediaPipe contributors, Apache License 2.0.
+https://github.com/google-ai-edge/mediapipe
+
+Depth Anything V2 Small:
+Lihe Yang, Bingyi Kang, Zilong Huang, Xiaogang Xu, Jiashi Feng, Hengshuang Zhao;
+Small checkpoint and code under Apache License 2.0. Larger noncommercial models
+are not included. ONNX conversion: onnx-community/depth-anything-v2-small.
+https://github.com/DepthAnything/Depth-Anything-V2
+https://huggingface.co/onnx-community/depth-anything-v2-small
+
+ONNX Runtime Web: Microsoft and contributors, MIT License.
+https://github.com/microsoft/onnxruntime
+piexifjs: hMatoba, MIT License.
+https://github.com/hMatoba/piexifjs
+
+Pinned model origins and checksums: models/SOURCES.md.
+Runtime package licenses are copied to licenses/generated/ during preparation.

@@ -1,10 +1,10 @@
 # Still
 
-A mobile-friendly, Snapseed-inspired photo editor. A quiet olive workspace, a large photo canvas, expressive Looks, and **36 editing tools**. Processing happens locally, without accounts, uploads, ads, or watermarks.
+A mobile-friendly, Snapseed-inspired photo studio with **36 tools**, non-destructive editing, local AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
 
-## Run
+## Run and check
 
-Requires Node.js 24 and npm.
+Requires Node.js 24 and npm. All model files are included in the repository; setup verifies their checksums.
 
 ```sh
 npm ci
@@ -12,60 +12,65 @@ npm run dev
 ```
 
 ```sh
-npm test                   # color processing, LUTs, and preset validation
-npm run build             # TypeScript, production assets, and offline service worker
+npm test                     # pixel math, formats, metadata, and community API tests
+npm run build                # TypeScript, production build, offline precache
 npx playwright install chromium
-npm run test:e2e           # production browser tests
-npm run preview           # serve the production app
+npm run test:e2e             # actual production-browser workflows
+npm run preview              # installation/offline testing
 ```
 
-The development server intentionally does not register a service worker. Use the production preview to test installation and offline behavior. The app ships a bundled sample photo, so it is usable immediately.
+Development intentionally does not register a service worker. Use production preview to test offline behavior. The first online visit caches approximately **61 MB**, including the RAW decoder, learned models, and their runtimes. Once installation completes, editing, inference, capture effects, imports, and exports work without a server connection.
 
-## What is included
+## Editing
 
-- Responsive desktop workspace and mobile editing sheet; touch painting, crop handles, pinch zoom, and panning.
-- Tone, detail, white balance with neutral-point sampling, editable RGB/channel curves, HSL, color grading, and RAW imports decoded on-device by LibRaw WebAssembly.
-- Crop, rotate, flip, perspective, expansion, selective color/radial adjustments, exposure/saturation/warmth brushes, and feathered clone healing.
-- HDR, glamour glow, tonal contrast, drama, vintage, grainy film, retrolux, grunge, black and white, noir, motion blur, bloom, and halation.
-- Manual portrait and head-pose adjustments, circular/linear lens blur, vignette, blended double exposure, multiline text, and frames.
-- Non-destructive edit stack, 60 undo transitions, original comparison, and automatic IndexedDB project recovery.
-- Ten starter Looks, saved custom Looks, JSON and QR sharing/import, basic Camera Raw XMP tone import, .cube and Hald PNG LUTs, and ZIP look packs.
-- JPG, PNG, and WebP export with size/quality controls; native Save As when available; batch edits of up to 10 photos exported as a ZIP.
-- Installable PWA, complete offline asset precaching including RAW decoding, and **PWA File Handling** through `file_handlers` and `launchQueue`.
-- Opening by file picker, drop, paste, or mobile camera capture.
+- Tone, white balance with neutral-point sampling, arbitrary RGB/channel/luminance curves, HSL, grading, detail, and dark-channel dehaze.
+- Crop handles/ratios, straightening/flips/perspective, smart texture expansion, selective adjustments, local brushes, and content-aware healing or clone mode.
+- HDR, glow, tonal contrast, drama, vintage, film responses, grain, retrolux, grunge, monochrome/noir, motion blur, bloom, and halation.
+- Local subject/background segmentation for Selective, Brush, Motion Blur, and Lens Blur. Learned scene depth for depth-aware focus.
+- Automatic face landmarks, face-aware portrait lighting/eyes, and 3D mesh pose/eye/smile adjustments. Manual placement remains available. No identity recognition is performed.
+- Double exposure/blends, multiline typography, frames, and adjustable 3D LUTs in .cube, flattened Hald PNG, or tiled PNG layouts.
+- **16-bit linear RAW development** before display conversion; original RAW bytes survive local recovery and later development changes.
+- Editable/removable stack entries, undo/redo, original comparison, and automatic project recovery in IndexedDB.
+- Ten starter Looks, six offline Discover Looks, saved recipes, JSON/QR/XMP sharing, ZIP packs, and supported native Snapseed QR operators.
+- Live camera preview with built-in or saved Looks; capture retains an editable source and Look. Camera permission and device availability are browser-dependent.
+- JPG/PNG/WebP export with size/quality and optional EXIF preservation. GPS is included when present in supported source EXIF and preservation is selected. Batch export regenerates AI selections for each photo and downloads a ZIP.
 
-This is an independent browser implementation. It **does not reproduce every proprietary Snapseed capability or output**. In particular, subject/depth AI masking, automatic facial landmarks and 3D face reconstruction, content-aware expansion/healing, Google Discover/community services, native camera live styles, Snapseed's private QR format, and full Adobe XMP semantics are not implemented. Local alternatives and exact differences are documented in [feature coverage](docs/FEATURES.md).
+The app has its own algorithms and output. [Feature coverage](docs/FEATURES.md) identifies compatibility limits, including private Snapseed QR operators, Adobe-only profiles/settings, and single-image face reconstruction.
 
 ## GitHub Pages
 
-1. Push this project to a GitHub repository on `main` or `master`.
-2. In **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**.
-3. The included [Pages workflow](.github/workflows/deploy.yml) tests, builds, and publishes the `dist` artifact. It can also be run manually from Actions.
+1. Push to `main` or `master`.
+2. Set **Settings → Pages → Build and deployment → Source → GitHub Actions**.
+3. The [Pages workflow](.github/workflows/deploy.yml) validates the editor, obtains the repository base path, builds, and deploys `dist`. It also supports manual runs. PRs have a separate check workflow.
 
-The workflow obtains the correct base path from `actions/configure-pages`, supporting both repository sites (`/repository/`) and root/custom-domain sites. No token secret is needed: deployment uses the workflow's scoped `GITHUB_TOKEN` and OIDC permissions. A separate PR workflow runs build and browser checks.
-
-For a manual subpath build:
+No personal token is required; the workflow uses scoped Pages/OIDC permissions. Root sites, custom-domain sites, and repository sites such as `/photo-editor/` use the appropriate base path.
 
 ```sh
 BASE_PATH=/photo-editor/ npm run build
 ```
 
-No deployment is performed by installing or building locally. Publishing occurs only when the configured workflow is triggered on GitHub.
+Local builds do not publish. The GitHub workflow deploys when triggered on GitHub.
 
-## PWA and file handling
+## PWA File Handling
 
-Open once online and wait for installation to finish. The complete application, sample, font, icons, modules, and RAW decoder are then available offline. Your current source photo and edit stack are stored in IndexedDB on the device. Export important work; clearing site data removes local projects and Looks.
+Install from Chrome/Edge's address bar, or **Safari → Share → Add to Home Screen** on iOS. Supported **desktop Chromium** installations can register Still in the OS **Open with** menu for supported raster and RAW files. `file_handlers`, relative manifest URLs, and an early `launchQueue` consumer share the ordinary validated import pipeline. Multiple incoming files open a chooser with a batch option. Pickers, drop, paste, and camera input remain available elsewhere.
 
-Install from Chrome/Edge's address bar, or on iOS through **Safari → Share → Add to Home Screen**. In supported **desktop Chromium** browsers, installed Still can be selected in the OS **Open with** menu for supported image/RAW extensions. OS registration and permission prompts are browser-dependent. File pickers remain available on all browsers. See [PWA implementation and verification](docs/PWA.md).
+See [PWA details and manual OS checks](docs/PWA.md). Actual OS associations require browser permission and cannot be established by a simulated launch-queue test.
 
-## Limits
+## Optional community
 
-- Working images are capped at 6000 px on the longest side, 40 MP on input, and 100 MB encoded file size. Very large RAW files are decoded at half size. Canvas allocations are limited to 48 MP and 16,384 px on either side.
-- Editing/export uses browser Canvas 2D in 8-bit sRGB; original EXIF/GPS/ICC metadata is not preserved. PNG retains transparency, JPG flattens through the browser encoder. GIF/animated WebP opens as a still.
-- RAW tool adjustments run after LibRaw's camera-WB-to-sRGB development. Camera/codec support depends on the bundled LibRaw build.
-- Local storage can be unavailable, full, or evicted. The UI reports saving failures; downloads remain available.
-- An initial online visit is required before offline use. Operating-system PWA registration still needs manual verification on each target OS/browser.
+**Explore looks → Discover** always includes a local collection. To share Looks, connect a self-hosted community service in Discover. The included Node 24/SQLite service provides accounts, searchable Looks, likes, comments, ownership, and duplicate-safe offline publishing. It receives reviewed recipes and small previews, not original photos.
 
-See [research and design](docs/DESIGN.md) and [third-party notices](public/THIRD_PARTY_NOTICES.txt).
+```sh
+npm run community:server
+```
 
-Validation results and desktop/mobile screenshots are in [the validation report](docs/VALIDATION.md).
+Public use needs separate HTTPS hosting and persistent storage; GitHub Pages cannot run the backend. [Community deployment instructions](server/README.md) include Node/container options. No hosted account or service is created automatically.
+
+## Practical limits
+
+Working images are limited to 6000 px on the longest side, 40 MP on import, and 100 MB encoded size. Large RAW inputs can develop at half size. Individual canvas allocations are limited to 48 MP/16,384 px. Final display edits and exports use 8-bit sRGB; incompatible original ICC profiles are not copied onto converted pixels. RAW exports preserve common shooting tags; original manufacturer-specific metadata and original RAW files are not rewritten. Animated input opens as a still.
+
+Local projects and Looks can be removed by storage eviction or clearing site data. Export important work. A first online installation must complete before offline use. Models may take longer on older devices; analysis can be cancelled. Community operations require the optional backend, with an outbox for reviewed offline posts.
+
+[Research/design](docs/DESIGN.md) · [Validation and screenshots](docs/VALIDATION.md) · [Credits](public/THIRD_PARTY_NOTICES.txt) · [Model sources/checksums](public/models/SOURCES.md)

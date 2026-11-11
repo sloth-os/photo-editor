@@ -1,8 +1,7 @@
 name: Check editor
 on:
   pull_request:
-  push:
-    branches: [main, master]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

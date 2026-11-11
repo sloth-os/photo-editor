@@ -1,5 +1,6 @@
 import type { Edit } from "./catalog";
 import type { Recipe } from "./files";
+import type { CameraMetadata } from "./metadata";
 
 export type SavedProject = {
   blob: Blob;
@@ -7,6 +8,8 @@ export type SavedProject = {
   edits: Edit[];
   pending?: Edit;
   raw: boolean;
+  rawSource?: Blob;
+  metadata?: CameraMetadata;
   savedAt: number;
 };
 let dbPromise: Promise<IDBDatabase> | undefined;
@@ -51,3 +54,6 @@ export const loadProject = () => read<SavedProject>("project");
 export const saveProject = (project: SavedProject) => write("project", project);
 export const loadRecipes = async () => (await read<Recipe[]>("recipes")) || [];
 export const saveRecipes = (recipes: Recipe[]) => write("recipes", recipes);
+export const loadCommunity = <T>(key: string) => read<T>(`community-${key}`);
+export const saveCommunity = (key: string, value: unknown) =>
+  write(`community-${key}`, value);

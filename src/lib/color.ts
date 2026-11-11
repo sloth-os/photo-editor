@@ -129,8 +129,15 @@ export function tone(
   p: Record<string, number | string>,
 ): [number, number, number] {
   const n = (k: string) => Number(p[k] || 0);
+  const gain = 2 ** (n("exposure") / 50);
+  r *= gain;
+  g *= gain;
+  b *= gain;
   const lum = luminance(r, g, b) / 255;
-  const bright = n("brightness") * 0.65 + n("exposure") * 0.9;
+  const bright =
+    n("brightness") * 0.65 +
+    n("blacks") * 0.6 * (1 - lum) ** 4 +
+    n("whites") * 0.6 * lum ** 4;
   const shadow = n("shadows") * Math.pow(1 - lum, 2) * 0.85;
   const highlight = n("highlights") * Math.pow(lum, 2) * 0.85;
   const ambiance = n("ambiance") * (0.5 - lum) * 0.9;

@@ -1,72 +1,55 @@
 # Feature coverage
 
-Still is inspired by Snapseed; its algorithms and preset formats are independent. “Included” means an actual pixel-processing operation, not only a UI control.
+Still is an independent Snapseed-inspired implementation. Included features operate on real pixels; its algorithms, model outputs, and preset semantics are not identical to Google's or Adobe's.
 
-| Tool            | Included implementation                                                                               |
-| --------------- | ----------------------------------------------------------------------------------------------------- |
-| Tune image      | Brightness, contrast, saturation, ambiance, highlights, shadows, warmth; histogram-guided auto adjust |
-| Details         | Local contrast/structure and unsharp sharpening                                                       |
-| Curves          | Five draggable tonal anchors, per-channel RGB/red/green/blue curves, sliders                          |
-| White balance   | Temperature/tint and neutral-point sampling                                                           |
-| Crop            | Free crop, common ratios, draggable corners, numeric margins                                          |
-| Rotate          | Quarter turns, straightening, horizontal/vertical flips                                               |
-| Perspective     | Projective horizontal/vertical adjustment with scale; edge replication                                |
-| Expand          | Reflected edges, white, or black canvas expansion                                                     |
-| Selective       | Tap-positioned radial or similar-color mask; brightness, contrast, saturation                         |
-| Brush           | Exposure, dodge, saturation, warmth; feathered normalized touch strokes                               |
-| Healing         | Feathered clone from a configurable nearby source                                                     |
-| HDR scape       | Local contrast, shadow/highlight compression, brightness, saturation                                  |
-| Glamour glow    | Soft blur blend, glow, saturation, warmth                                                             |
-| Tonal contrast  | Local-contrast weighting for high, mid, and low tones                                                 |
-| Drama           | Strong local contrast, global contrast, saturation                                                    |
-| Vintage         | Warm faded tones, brightness, saturation, vignette                                                    |
-| Grainy film     | Deterministic film grain and warm tone styling                                                        |
-| Retrolux        | Warm aging, light leaks, deterministic scratches                                                      |
-| Grunge          | Contrast, deterministic texture, brightness, vignette                                                 |
-| Black & white   | Luminance conversion, brightness, contrast, grain                                                     |
-| Noir            | Monochrome contrast, grain, wash, vignette                                                            |
-| Portrait        | Manually positioned elliptical spotlight, softening, and eye-area brightening                         |
-| Head pose       | Manual local 2D warp: turn, tilt, smile, eye scaling, face center and size                            |
-| Lens blur       | Circular or rotated linear focus, transition, blur, vignette                                          |
-| Vignette        | Tap-positioned center, inner/outer brightness, center size                                            |
-| Double exposure | Embedded second image; normal, screen, multiply, overlay, lighten, darken blends                      |
-| Text            | Multiline text, serif/sans/mono, regular/bold, color, position, size, opacity                         |
-| Frames          | Canvas border size and arbitrary color                                                                |
-| RAW develop     | LibRaw WASM imports, camera WB → sRGB, followed by exposure/tone/color adjustments                    |
-| Color HSL       | Hue, saturation, luminance for all colors or eight targeted hue ranges                                |
-| Color grade     | Independent shadow/midtone/highlight hue and strength; tonal balance                                  |
-| Dehaze          | Contrast/shadow and saturation treatment                                                              |
-| Motion blur     | Directional multi-sample image blend                                                                  |
-| Bloom           | Highlight-thresholded blurred screen glow                                                             |
-| Halation        | Highlight-thresholded warm/red light spread                                                           |
-| LUT             | Trilinear interpolation for .cube 3D LUTs up to 64³; standard flattened Hald PNG import               |
+| Area                                       | Implementation                                                                                                                                        |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tune / white balance                       | Brightness, contrast, saturation, ambiance, highlights, shadows, warmth, temperature/tint, neutral-point sampling, auto adjustment                    |
+| Details / curves                           | Structure/sharpening; add, drag, remove, or keyboard-adjust curve points; RGB, red, green, blue, luminance; tonal sliders                             |
+| Geometry                                   | Free/ratio crop with handles; quarter turns, flips, straightening; projective perspective and scaling                                                 |
+| Expand / healing                           | Worker-based exemplar-guided texture synthesis; reflected/solid expansion; clone mode and source offsets                                              |
+| Selective / brush                          | Radial/color selection and learned subject/background segmentation; exposure/dodge/saturation/warmth strokes, optionally constrained to the selection |
+| HDR / tonal contrast / drama               | Local contrast and tonal processing with actual adjustable strengths                                                                                  |
+| Film / vintage / grain / retrolux / grunge | Independent film responses, grain, aging/leaks/scratches/texture, and vignette treatment                                                              |
+| Monochrome / noir                          | Luminance conversion, contrast, brightness, grain, wash                                                                                               |
+| Portrait                                   | Automatic local face landmarks, face-aware light/skin/eye regions, multiple-face choice, manual fallback                                              |
+| Head pose                                  | 3D landmark mesh rotation/reprojection, eye size, smile, manual fallback                                                                              |
+| Lens blur                                  | Circular, linear, subject-aware, and learned relative-depth focus with adjustable blur/transition                                                     |
+| Vignette                                   | Positioned center, inner/outer brightness, center size                                                                                                |
+| Double exposure                            | Embedded second image with normal, screen, multiply, overlay, lighten, or darken compositing                                                          |
+| Text / frames                              | Multiline serif/sans/mono, regular/bold, position, size, opacity, color; adjustable borders                                                           |
+| RAW develop                                | LibRaw 16-bit linear output; exposure/WB/tone before sRGB conversion; original RAW source retained for later development                              |
+| HSL / grading                              | Targeted hue ranges; independent shadow/midtone/highlight color and balance                                                                           |
+| Dehaze                                     | Dark-channel transmission recovery and atmospheric-light estimation                                                                                   |
+| Motion blur                                | Directional sampling over the scene, subject, or background                                                                                           |
+| Glow / bloom / halation                    | Softening, thresholded highlight bloom, warm/red light spread                                                                                         |
+| LUT                                        | Trilinear 3D sampling, .cube up to 64³, Hald and tiled PNG layouts                                                                                    |
 
-## Workflow features
+## Workflows
 
-| Feature                 | Status and boundaries                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Looks                   | Ten bundled previews plus locally saved edit recipes                                                                        |
-| Non-destructive editing | Original source retained; editable/removable stack entries; undo/redo, reset, compare                                       |
-| Local recovery          | Current source and all visible edits saved in IndexedDB; recovered after reload, including offline                          |
-| Presets                 | Still JSON import/export; basic Adobe Camera Raw XMP tone attributes; no full Lightroom rendering compatibility             |
-| QR Looks                | Still's own QR schema, local generation and scanning; not Snapseed's private format; large recipes use JSON                 |
-| LUT PNG                 | Standard square flattened Hald CLUT images up to 512×512; tiled/Unreal LUT images are not supported                         |
-| Look packs              | ZIP import of 1–20 JSON/XMP/.cube recipes, 12 MB expanded limit                                                             |
-| Batch                   | Up to 10 images processed with the current stack; ZIP of edited outputs                                                     |
-| Camera                  | Browser/mobile camera capture through the platform image input; desktop opens an image picker                               |
-| Export                  | JPG/PNG/WebP, quality and size, download and native Save As where available; original file is not overwritten automatically |
-| PWA                     | Installable, complete local asset cache, offline photo editing/export, version-update prompt                                |
-| File handling           | Installed desktop Chromium OS associations, launch queue, multiple-file chooser; picker/drop/paste on other browsers        |
+| Feature                   | Status                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Non-destructive editing   | Original source, editable/removable stack, undo/redo, reset, compare                                                                                                               |
+| Recovery                  | Source, RAW bytes, edits, masks, depth, and landmarks stored locally; no running process is required for restoration                                                               |
+| Looks / Discover          | Ten starter Looks, six offline Discover Looks, local recipes, optional shared community                                                                                            |
+| JSON / QR                 | Complete Still JSON import/export; Still QR within QR size limits; large recipes use files                                                                                         |
+| Native Snapseed QR        | Local gzip/protobuf decoding of verified Tune image and Curves operators; supported export; original native QR retained for unchanged re-export                                    |
+| XMP                       | Exposure/tone/WB, curves, HSL, grading, detail, crop, dehaze, vignette, grain; export includes compatible fields and a complete Still recipe extension for exact Still round-trips |
+| Packs / LUT PNG           | ZIP packs of JSON/XMP/.cube; flattened Hald and tiled/Unreal-style PNG layouts selectable after import                                                                             |
+| Camera                    | Real live camera frames with built-in or saved Look previews; editable capture, front/back switch, selfie mirroring, permission fallback                                           |
+| Batch / reusable AI Looks | Up to ten photos per ZIP; subject/depth/face analysis recomputed against each target photo rather than copied from the creator's scene                                             |
+| Export / metadata         | JPG/PNG/WebP, size/quality, download/native Save As; optional EXIF in each format, corrected orientation/dimensions; common RAW shooting tags                                      |
+| Community                 | Optional self-hosted accounts, searchable feed, publishing, likes/comments, author deletion, cached browsing and idempotent offline outbox                                         |
+| PWA / file handling       | Fully cached local inference/editing; install/update flow; desktop Chromium OS associations with picker/drop/paste fallbacks                                                       |
 
-## Differences from Snapseed
+## Material boundaries
 
-- No Google Discover feed, accounts, shared community backend, or native camera with live film simulation. The offline starter Looks and shareable files are the local alternative.
-- No bundled machine-learning subject/depth segmentation. Selective uses radial or sampled color masks; lens blur uses a positioned focus shape. Neither is advertised as object-aware AI masking.
-- Portrait and head pose require manual region placement. No face recognition, landmarks, or 3D face reconstruction are performed.
-- Healing clones a feathered nearby source. Expansion uses reflected pixels or solid fill; neither performs content-aware synthesis.
-- RAW support depends on LibRaw's available camera codecs. Adjustments operate on decoded 8-bit sRGB rather than sensor-linear RAW. Original RAW bytes are not exported; the developed bitmap is used for recovery.
-- Film effects are independent approximations, not copies of Google's film simulations or presets. Dehaze is a contrast-based treatment, not depth reconstruction.
-- Export replays the edit stack at the selected source resolution; blur/structure are scaled approximately between preview and export. Resampling and deterministic grain may produce small visual differences at different sizes.
-- Animations flatten to a still. EXIF, GPS, and original ICC metadata are not retained. Working images are bounded for browser/mobile memory.
-
-These differences are material: the app provides broad Snapseed-style editing coverage, not exact feature or output parity.
+- Google's community/account backend is not exposed by this app. Still's optional community service is independent and needs its own HTTPS host. No external service is provisioned automatically.
+- Snapseed QR's complete private operator schema is not published. Verified operator IDs `70516243` (Tune image) and `139220080` (Curves) are supported. Other operators are reported explicitly, retained in the original native payload, and not guessed or silently treated as supported.
+- XMP profile/DCP rendering, proprietary Adobe masks and adjustments, and every Lightroom processing semantic are not reproduced. The Still recipe extension preserves Still tools during XMP round-trips; another application may ignore that extension.
+- Segmentation covers the categories learned by DeepLab. Low-confidence/unrecognized subjects can require manual selection. Learned depth is relative, not a calibrated distance measurement.
+- Face pose projects an estimated single-image 3D mesh. It does not generate an unseen side of the face; large changes can expose texture/occlusion artifacts. It does not recognize identities.
+- Smart healing/expansion propagates matching surrounding texture. It is content-aware image synthesis, not a generative scene model; large missing regions can show repetition or seams. Manual/clone/reflection alternatives remain available.
+- Film responses are independently designed rather than copies of proprietary film presets. Processing can differ slightly between preview/export resolutions. Pixel math and seeded grain are deterministic for a given resolution.
+- After RAW development, display operations and exports use 8-bit sRGB. Camera support follows the bundled LibRaw codecs. Unsupported original color profiles/manufacturer tags are not reattached to converted pixels; PNG transparency is retained and JPEG transparency is flattened onto white.
+- Browser memory, local-storage availability, camera permissions, and installed-PWA OS support remain platform constraints. Offline use requires the first installation to finish.

@@ -1,0 +1,8 @@
+**
+!server/
+!server/index.mjs
+!server/Dockerfile
+!src/
+!src/lib/
+!src/lib/color.ts
+!package.json

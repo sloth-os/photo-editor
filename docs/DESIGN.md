@@ -35,3 +35,28 @@ Still has its own identity rather than using Google's marks: a shutter symbol, a
 ## Scope and parity
 
 The intent is a complete, usable browser editing workspace covering Snapseed's classic tools and newer editing categories. Proprietary processing, private preset formats, social services, and AI models cannot be inferred from the reference UI. The app uses honest local equivalents and documents those differences rather than labeling manual tools as AI. See [feature coverage](FEATURES.md).
+
+## Completed advanced workflows
+
+The follow-up implementation bundles learned segmentation, face landmarks, and
+relative scene depth. Analysis runs in workers; masks and geometry are saved
+with edits. Model origins, licenses, and checksums are recorded in
+`public/models/SOURCES.md`. Content-aware texture synthesis runs in its own
+worker. Dehaze uses an atmospheric-light/dark-channel model rather than a global
+contrast substitute.
+
+RAW input is developed as 16-bit linear RGB before display conversion, with the
+original bytes retained for subsequent changes. Export offers optional metadata
+preservation without reattaching an incompatible original ICC profile.
+
+Camera capture uses actual video frames with editable live Looks. Discover has
+a bundled offline collection and an optional independent community service.
+Sharing always requires an explicit user publish action; original source files
+are not sent. Both batch processing and reusing an AI Look regenerate analysis
+for each target photo.
+
+Native Snapseed QR support is limited to operators verified against a public
+payload. Unknown operators are disclosed and preserved, rather than assigned
+unverified meanings. XMP carries compatible fields plus a complete Still recipe
+extension. These choices make interoperability inspectable while retaining clear
+boundaries around proprietary processing.

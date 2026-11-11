@@ -1,36 +1,37 @@
 # Validation
 
-Validated in the supplied workspace on November 10, 2026.
+Validated in the supplied workspace on November 10, 2026 (Pacific time).
 
-| Check                                | Result                                                                                                                                   |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript and Vite production build | Passed                                                                                                                                   |
-| Unit tests                           | 14 passed: tone math, HSL roundtrips, LUT interpolation/domains, malformed presets                                                       |
-| Chromium browser tests               | 16 passed, including actual pixel changes across all 36 tools                                                                            |
-| Export                               | Downloaded PNG header and full working dimensions verified; JPG offline export verified                                                  |
-| Local tools                          | Real brush/healing strokes, crop/rotate geometry, text rendering, undo/redo/compare verified                                             |
-| Presets                              | JSON validation, saved Looks, QR roundtrip, .cube import, Hald PNG import, XMP and ZIP pack import verified                              |
-| Batch                                | Two edited PNG files extracted and verified from the downloaded ZIP                                                                      |
-| Offline                              | Browser networking disabled; reload, restored source/edits, pixel adjustment, and export passed                                          |
-| PWA File Handling                    | Manifest extensions/scope and simulated initial OS file launch passed                                                                    |
-| RAW                                  | Real 30.3 MB Sony ARW decoded locally; working image 6000 × 4008                                                                         |
-| GitHub Pages path                    | Separate build with `BASE_PATH=/photo-editor/`; all asset/worker URLs correctly scoped                                                   |
-| Offline RAW at repository subpath    | Real Sony ARW opened after disabling networking; no runtime errors or failed requests                                                    |
-| Responsive layout                    | No horizontal overflow observed at widths 320, 375, 390, 430, 768, 820, 1024, 1366, and 1920; mobile photo stays above the editing sheet |
-| Landscape phone                      | 740 × 390 fits the viewport; adjustments open alongside the photo                                                                        |
-| Dependency audit                     | Production dependency audit reported zero vulnerabilities                                                                                |
-| Formatting                           | Prettier check passed                                                                                                                    |
+| Check                                | Result                                                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript and Vite production build | Passed, including worker bundles and checksum-verified model assets                                                                                                              |
+| Unit tests                           | 27 passed: color/LUT math, content-aware fill, dehaze, metadata, native QR, long-project recovery and malformed imports                                                          |
+| Community API integration tests      | 11 passed: accounts/session invalidation, ownership, likes/comments, persistence, search, idempotency, CORS, request/body limits and render-data validation                      |
+| Chromium browser suite               | 25 passed, covering actual image edits across all 36 tools and the advanced workflows below                                                                                      |
+| Offline intelligence                 | Networking disabled before reload; actual face landmarks, projected pose, subject selection and learned depth completed successfully                                             |
+| Content-aware operations             | Healing changes verified; smart expansion fills new pixels and undo restores the original                                                                                        |
+| RAW                                  | Synthetic Bayer DNG decoded as 16-bit linear data; exposure changes pixels; original RAW bytes and edited result survive reload. A real 30.3 MB Sony ARW was also opened locally |
+| Camera                               | Live-frame preview/capture exercised through the media-stream interface using a deterministic test stream; captured Look remains editable/undoable                               |
+| Metadata                             | Actual JPG/PNG/WebP downloads retain selected EXIF/GPS with corrected orientation/dimensions; PNG metadata can be read for another editing session                               |
+| Presets                              | Still QR, native Tune/Curves QR, unsupported-operator disclosure, XMP round-trip, ZIP packs, Hald and tiled PNG LUTs verified                                                    |
+| Batch / reusable AI Looks            | Worker analysis observed for every target image; face coordinates change correctly for a differently sized scene rather than reusing the creator's coordinates                   |
+| Community UI                         | Service connection, account creation, reviewed offline publishing/outbox retry, likes and escaped-text comments verified against the actual local service                        |
+| File handling                        | Manifest extensions/scope and simulated initial OS launch passed                                                                                                                 |
+| Repository subpath                   | Independent `/photo-editor/` build; service-worker scope and actual offline face inference passed with no failed requests or runtime errors                                      |
+| Responsive layout                    | Desktop and mobile checked; no horizontal overflow; the mobile photo remains above the adjustment sheet                                                                          |
+| Production dependency audit          | Zero vulnerabilities reported                                                                                                                                                    |
+| Formatting                           | Prettier check passed                                                                                                                                                            |
 
-OS-level PWA installation/association and a live GitHub Pages deployment were not performed. The launch-queue browser test simulates file handles; actual OS association remains a manual check on each target platform. Tests do not establish proprietary Snapseed output equivalence.
+The browser camera test uses a synthetic stream; real device permission/lens behavior still needs device testing. Actual OS PWA registration, a live GitHub Pages deployment, and a hosted public community service were not performed. Container instructions are supplied; API tests run the Node service directly. Proprietary Google/Adobe output equivalence is not claimed; see [feature boundaries](FEATURES.md).
 
 ## Screenshots
 
-Desktop:
+![Desktop workspace](screenshots/desktop.png)
 
-![Still desktop workspace](screenshots/desktop.png)
+![Mobile workspace](screenshots/mobile.png)
 
-Mobile workspace and adjustments:
+![Mobile adjustments](screenshots/mobile-adjust.png)
 
-![Still mobile workspace](screenshots/mobile.png)
+![Local face tools](screenshots/local-face-tools.png)
 
-![Still mobile adjustment sheet](screenshots/mobile-adjust.png)
+![Offline Discover collection](screenshots/discover.png)

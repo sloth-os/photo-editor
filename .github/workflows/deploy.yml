@@ -25,6 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Build and verify the production editor
+        run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

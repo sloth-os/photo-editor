@@ -9,6 +9,10 @@ import {
   sampleLut,
 } from "./color";
 import { tone } from "./color";
+import { contentAware } from "./content-aware";
+import { warpFace, faceRegion } from "./face-mesh";
+import { recoverHaze } from "./dehaze";
+import { developRaw } from "./raw";
 
 type Canvas = HTMLCanvasElement;
 export function canvas(w: number, h: number): Canvas {
@@ -163,13 +167,24 @@ export function resizeOutput(source: Canvas, maxDimension: number): Canvas {
 }
 
 export async function renderImage(
-  source: HTMLImageElement,
+  source: HTMLImageElement | HTMLCanvasElement,
   edits: Edit[],
   maxDimension = 1400,
+  rawSource?: Blob,
 ): Promise<Canvas> {
+  if (rawSource) {
+    const rawEdits = edits.filter((e) => e.tool === "raw");
+    if (rawEdits.length) {
+      source = await developRaw(
+        rawSource,
+        Object.assign({}, ...rawEdits.map((e) => e.params)),
+      );
+      edits = edits.filter((e) => e.tool !== "raw");
+    }
+  }
   const { width, height } = fitDimensions(
-    source.naturalWidth,
-    source.naturalHeight,
+    "naturalWidth" in source ? source.naturalWidth : source.width,
+    "naturalHeight" in source ? source.naturalHeight : source.height,
     maxDimension,
   );
   let output = canvas(width, height);
@@ -179,10 +194,21 @@ export async function renderImage(
 }
 
 async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
-  const { tool, params: p } = edit,
+  const { tool, params: originalParams } = edit,
+    p = { ...originalParams },
     n = (k: string, d = 0) => Number(p[k] ?? d),
     w = src.width,
     h = src.height;
+  let subject: Uint8ClampedArray | undefined;
+  if (
+    edit.mask &&
+    ["selective", "brush", "lens-blur", "motion"].includes(tool)
+  ) {
+    const image = await loadImage(edit.mask),
+      mask = canvas(w, h);
+    context(mask).drawImage(image, 0, 0, w, h);
+    subject = context(mask).getImageData(0, 0, w, h).data;
+  }
   if (tool === "look") {
     const look = looks.find((l) => l.id === p.look);
     if (!look || look.id === "original") return src;
@@ -206,11 +232,77 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         lo = Math.min(3, Math.floor(t));
       return mix(values[lo], values[lo + 1], t - lo) * 255;
     });
-    return pixels(src, (r, g, b) => [
-      p.channel === "rgb" || p.channel === "red" ? lut[r] : r,
-      p.channel === "rgb" || p.channel === "green" ? lut[g] : g,
-      p.channel === "rgb" || p.channel === "blue" ? lut[b] : b,
-    ]);
+    const tables = new Map<string, Float32Array>();
+    for (const key of [
+      "curveRGB",
+      "curveRed",
+      "curveGreen",
+      "curveBlue",
+      "curveLuma",
+    ])
+      if (p[key]) {
+        const points = JSON.parse(String(p[key])) as number[][];
+        tables.set(
+          key,
+          Float32Array.from({ length: 256 }, (_, value) => {
+            const x = value / 255;
+            let low = 0;
+            while (low < points.length - 2 && points[low + 1][0] < x) low++;
+            const a = points[low],
+              b = points[low + 1];
+            return (
+              mix(
+                a[1],
+                b[1],
+                clamp((x - a[0]) / Math.max(0.00001, b[0] - a[0]), 0, 1),
+              ) * 255
+            );
+          }),
+        );
+      }
+    const curve = (value: number, key: string) => {
+      const table = tables.get(key);
+      if (!table) return value;
+      const v = clamp(value),
+        lo = Math.floor(v),
+        hi = Math.min(255, lo + 1);
+      return mix(table[lo], table[hi], v - lo);
+    };
+    const adjust = (v: number, channel: string) => {
+      v = curve(curve(v, "curveRGB"), channel);
+      if (
+        p.channel === "rgb" ||
+        p.channel === channel.replace("curve", "").toLowerCase()
+      ) {
+        const pos = (clamp(v, 0, 255) / 255) * 255,
+          lo = Math.floor(pos),
+          hi = Math.min(255, lo + 1);
+        v = mix(lut[lo], lut[hi], pos - lo);
+      }
+      return v;
+    };
+    return pixels(src, (r, g, b) => {
+      let color = [
+        adjust(r, "curveRed"),
+        adjust(g, "curveGreen"),
+        adjust(b, "curveBlue"),
+      ];
+      if (p.curveLuma || p.channel === "luma") {
+        const l = luminance(color[0], color[1], color[2]),
+          target = curve(l, "curveLuma"),
+          mapped =
+            p.channel === "luma"
+              ? mix(
+                  lut[Math.floor(clamp(target))],
+                  lut[Math.min(255, Math.ceil(clamp(target)))],
+                  target % 1,
+                )
+              : target,
+          gain = l > 0.001 ? mapped / l : 1;
+        color = color.map((v) => v * gain);
+      }
+      return color;
+    });
   }
   if (tool === "crop") {
     const left = (n("left") / 100) * w,
@@ -285,6 +377,14 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
       ctx.fillRect(0, 0, out.width, out.height);
     }
     ctx.drawImage(src, pad, pad);
+    if (p.fill === "smart") {
+      const mask = canvas(out.width, out.height),
+        mx = context(mask);
+      mx.fillStyle = "#fff";
+      mx.fillRect(0, 0, out.width, out.height);
+      mx.clearRect(pad, pad, w, h);
+      return contentAware(out, mask);
+    }
     return out;
   }
   if (tool === "selective") {
@@ -297,9 +397,14 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         1,
         1,
       ).data;
-    return pixels(src, (r, g, b, x, y) => {
+    return pixels(src, (r, g, b, x, y, i) => {
       let a = clamp(1 - Math.hypot(x - cx, y - cy) / radius, 0, 1);
       a = a * a * (3 - 2 * a);
+      if (subject && (p.mask === "subject" || p.mask === "background"))
+        a =
+          p.mask === "background"
+            ? 1 - subject[i + 3] / 255
+            : subject[i + 3] / 255;
       if (p.mask === "color")
         a *= clamp(
           1 - Math.hypot(r - sample[0], g - sample[1], b - sample[2]) / 140,
@@ -339,10 +444,36 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
             ? "brightness"
             : "exposure";
     return pixels(src, (r, g, b, _x, _y, i) =>
-      tone(r, g, b, { [param]: n("amount") * mask[i / 4] }),
+      tone(r, g, b, {
+        [param]:
+          n("amount") *
+          mask[i / 4] *
+          (subject
+            ? p.target === "background"
+              ? 1 - subject[i + 3] / 255
+              : subject[i + 3] / 255
+            : 1),
+      }),
     );
   }
   if (tool === "healing") {
+    if (p.method === "smart" && edit.points?.length) {
+      const mask = canvas(w, h),
+        ctx = context(mask);
+      ctx.fillStyle = "#fff";
+      for (const point of edit.points) {
+        ctx.beginPath();
+        ctx.arc(
+          point.x * w,
+          point.y * h,
+          point.radius * Math.min(w, h),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      return contentAware(src, mask);
+    }
     const original = context(src).getImageData(0, 0, w, h),
       out = context(src).getImageData(0, 0, w, h),
       d = out.data;
@@ -407,12 +538,19 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         }),
       );
     }
+    const ctx = context(src),
+      image = ctx.getImageData(0, 0, w, h);
+    ctx.putImageData(
+      new ImageData(
+        new Uint8ClampedArray(recoverHaze(image.data, w, h, n("amount"))),
+        w,
+        h,
+      ),
+      0,
+      0,
+    );
     return pixels(src, (r, g, b) =>
-      tone(r, g, b, {
-        contrast: n("amount") * 0.7,
-        shadows: -n("amount") * 0.25,
-        saturation: n("saturation") + n("amount") * 0.15,
-      }),
+      tone(r, g, b, { saturation: n("saturation") }),
     );
   }
   if (["glamour", "bloom", "halation"].includes(tool)) {
@@ -473,6 +611,20 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         contrast: tool === "grunge" ? strength * 35 : -strength * 15,
         warmth: strength * 35,
       });
+      if (tool === "grain" && p.stock && p.stock !== "neutral") {
+        const stock: Record<string, Record<string, number>> = {
+          portrait: { contrast: -8, saturation: -12, warmth: 20, shadows: 8 },
+          cinema: { contrast: 25, saturation: -10, warmth: -5, blacks: 6 },
+          tungsten: { contrast: 12, saturation: 8, warmth: -20, highlights: 8 },
+          mono: { saturation: -100, contrast: 20, shadows: 5 },
+        };
+        const film = tone(r, g, b, stock[String(p.stock)] || {});
+        t = t.map((value, k) => mix(value, film[k], strength)) as [
+          number,
+          number,
+          number,
+        ];
+      }
       if (tool === "grain" || tool === "grunge") {
         const grain =
           (noise(x, y) - 0.5) *
@@ -503,6 +655,8 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
       : src;
   }
   if (tool === "portrait") {
+    const face = edit.faces?.[n("faceIndex")];
+    if (face) Object.assign(p, faceRegion(face, w, h));
     const soft = blurred(src, Math.max(1, (w / 700) * 3)),
       sd = context(soft).getImageData(0, 0, w, h).data,
       cx = (n("centerX", 50) / 100) * w,
@@ -512,15 +666,30 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     return pixels(src, (r, g, b, x, y, i) => {
       const a = clamp(1 - Math.hypot((x - cx) / rx, (y - cy) / ry), 0, 1),
         smooth = (a * n("smooth")) / 130,
-        eyes =
-          Math.exp(
-            -(
-              ((x - cx) / rx) ** 2 +
-              ((y - (cy - ry * 0.15)) / (ry * 0.15)) ** 2
-            ) * 4,
-          ) *
-          n("eyes") *
-          0.2,
+        eyes = face
+          ? Math.max(
+              ...[468, 473].map((index) => {
+                const point = face[index] || face[index === 468 ? 33 : 263];
+                return (
+                  Math.exp(
+                    -(
+                      ((x - point.x * w) / (rx * 0.2)) ** 2 +
+                      ((y - point.y * h) / (ry * 0.09)) ** 2
+                    ),
+                  ) *
+                  n("eyes") *
+                  0.35
+                );
+              }),
+            )
+          : Math.exp(
+              -(
+                ((x - cx) / rx) ** 2 +
+                ((y - (cy - ry * 0.15)) / (ry * 0.15)) ** 2
+              ) * 4,
+            ) *
+            n("eyes") *
+            0.2,
         light = a * n("spotlight") * 0.5 + eyes;
       return [
         mix(r, sd[i], smooth) + light,
@@ -530,6 +699,7 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     });
   }
   if (tool === "head-pose") {
+    if (edit.faces?.length && edit.mesh?.length) return warpFace(src, edit);
     const ctx = context(src),
       original = ctx.getImageData(0, 0, w, h),
       out = ctx.getImageData(0, 0, w, h),
@@ -581,6 +751,36 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
     return src;
   }
   if (tool === "lens-blur") {
+    if (p.shape === "depth" && edit.depth) {
+      const image = await loadImage(edit.depth),
+        map = canvas(w, h);
+      context(map).drawImage(image, 0, 0, w, h);
+      const depth = context(map).getImageData(0, 0, w, h).data,
+        focusIndex =
+          (clamp(Math.round((n("y", 50) / 100) * h), 0, h - 1) * w +
+            clamp(Math.round((n("x", 50) / 100) * w), 0, w - 1)) *
+          4,
+        focus = depth[focusIndex] / 255,
+        levels = [
+          src,
+          ...[1, 2, 3, 4].map((level) =>
+            blurred(src, ((((n("strength") / 100) * w) / 50) * level) / 4),
+          ),
+        ].map((c) => context(c).getImageData(0, 0, w, h).data);
+      return pixels(src, (_r, _g, _b, _x, _y, i) => {
+        const distance = Math.abs(depth[i] / 255 - focus),
+          f = Math.min(
+            4,
+            (distance / Math.max(0.05, n("transition", 35) / 100)) * 4,
+          ),
+          lo = Math.floor(f),
+          hi = Math.min(4, lo + 1),
+          t = f - lo;
+        return [0, 1, 2].map((k) =>
+          mix(levels[lo][i + k], levels[hi][i + k], t),
+        );
+      });
+    }
     const blurredImage = blurred(
         src,
         (n("strength") / 100) * Math.max(2, w / 55),
@@ -598,7 +798,12 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
                 (y - cy) * Math.cos((n("angle") * Math.PI) / 180),
             )
           : Math.hypot(x - cx, y - cy);
-      const a = clamp((distance - size * 0.5) / transition, 0, 1);
+      const a =
+        p.shape === "subject" && subject
+          ? p.mask === "background"
+            ? subject[i + 3] / 255
+            : 1 - subject[i + 3] / 255
+          : clamp((distance - size * 0.5) / transition, 0, 1);
       return [mix(r, bd[i], a), mix(g, bd[i + 1], a), mix(b, bd[i + 2], a)];
     });
     return vignette(src, {
@@ -720,11 +925,49 @@ async function applyEdit(src: Canvas, edit: Edit): Promise<Canvas> {
         Math.sin(rad) * distance * t,
       );
     }
+    if (subject && p.area !== "all") {
+      const original = context(src).getImageData(0, 0, w, h).data;
+      return pixels(out, (r, g, b, _x, _y, i) => {
+        const a =
+          p.area === "background"
+            ? 1 - subject![i + 3] / 255
+            : subject![i + 3] / 255;
+        return [
+          mix(original[i], r, a),
+          mix(original[i + 1], g, a),
+          mix(original[i + 2], b, a),
+        ];
+      });
+    }
     return out;
   }
   if (tool === "lut" && p.cube) {
-    const lut = parseCube(String(p.cube)),
-      a = n("strength", 100) / 100;
+    let lut = parseCube(String(p.cube));
+    if (p.lutPng && p.lutLayout === "tiled") {
+      const image = await loadImage(String(p.lutPng)),
+        size = lut.size,
+        tiles = Math.sqrt(size),
+        c = canvas(image.naturalWidth, image.naturalHeight);
+      if (
+        !Number.isInteger(tiles) ||
+        image.naturalWidth !== size * tiles ||
+        image.naturalHeight !== size * tiles
+      )
+        throw new Error("This PNG does not use a square tiled LUT layout.");
+      context(c).drawImage(image, 0, 0);
+      const data = context(c).getImageData(0, 0, c.width, c.height).data,
+        values: number[] = [];
+      for (let b = 0; b < size; b++)
+        for (let g = 0; g < size; g++)
+          for (let r = 0; r < size; r++) {
+            const x = r + (b % tiles) * size,
+              y = g + Math.floor(b / tiles) * size,
+              i = (y * c.width + x) * 4;
+            values.push(data[i] / 255, data[i + 1] / 255, data[i + 2] / 255);
+          }
+      lut = { ...lut, values };
+    }
+    const a = n("strength", 100) / 100;
     return pixels(src, (r, g, b) => {
       const color = sampleLut(lut, r, g, b);
       return [mix(r, color[0], a), mix(g, color[1], a), mix(b, color[2], a)];

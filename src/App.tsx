@@ -71,8 +71,10 @@ import {
   fileSize,
   fileToDataUrl,
   validateRecipe,
+  validateProjectEdits,
   importLookFile,
   pngToCube,
+  blobDataUrl,
   type Photo,
   type Recipe,
 } from "./lib/files";
@@ -91,6 +93,14 @@ import {
   Slider,
 } from "./components/ui";
 import ToolControls from "./components/ToolControls";
+import { analyze, cancelAnalysis } from "./lib/intelligence";
+import { prepareBatchEdits } from "./lib/batch";
+import { faceRegion } from "./lib/face-mesh";
+import CameraStudio from "./components/CameraStudio";
+import { withMetadata } from "./lib/metadata";
+import CommunityStudio from "./components/CommunityStudio";
+import { exportXmp } from "./lib/presets";
+import { exportSnapseed } from "./lib/snapseed";
 
 type Snapshot = { edits: Edit[]; label: string };
 type Dialog =
@@ -102,6 +112,8 @@ type Dialog =
   | "save-look"
   | "batch"
   | "incoming"
+  | "camera"
+  | "community"
   | null;
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -180,10 +192,14 @@ export default function App() {
   const [format, setFormat] = useState("image/jpeg"),
     [quality, setQuality] = useState(95),
     [exportSize, setExportSize] = useState("original");
+  const [preserveMetadata, setPreserveMetadata] = useState(false);
   const [exportName, setExportName] = useState("alpine-escape-still"),
     [batchProgress, setBatchProgress] = useState("");
   const [incoming, setIncoming] = useState<File[]>([]),
     [qrUrl, setQrUrl] = useState("");
+  const [showMask, setShowMask] = useState(false);
+  const [lookLink, setLookLink] = useState("");
+  const analysisToken = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null),
     stageRef = useRef<HTMLDivElement>(null),
     photoRef = useRef<HTMLDivElement>(null);
@@ -264,6 +280,8 @@ export default function App() {
               ? "RAW developed locally. Make it your own."
               : "Your photo, your little world.",
         );
+        setShowMask(false);
+        return next;
       } catch (e) {
         if (loadToken.current === token) notify(errorText(e));
       } finally {
@@ -287,12 +305,14 @@ export default function App() {
             new File([saved.blob], "restored.png", { type: saved.blob.type }),
           );
           if (cancelled || loadToken.current !== token) return;
-          const validated = validateRecipe({
-            version: 1,
-            name: "Restored project",
-            edits: saved.edits,
+          const validated = { edits: validateProjectEdits(saved.edits) };
+          setPhoto({
+            ...image,
+            name: saved.name,
+            raw: saved.raw,
+            rawSource: saved.rawSource,
+            metadata: saved.metadata,
           });
-          setPhoto({ ...image, name: saved.name, raw: saved.raw });
           setHistory([
             { edits: [], label: "Original photo" },
             { edits: validated.edits, label: "Recovered edits" },
@@ -403,7 +423,12 @@ export default function App() {
           : dirty && active?.tool === "crop"
             ? previewEdits.filter((e) => e.id !== active.id)
             : previewEdits;
-        const result = await renderImage(photo.image, display, 1400);
+        const result = await renderImage(
+          photo.image,
+          display,
+          1400,
+          photo.rawSource,
+        );
         if (renderToken.current !== token || !canvasRef.current) return;
         const target = canvasRef.current;
         target.width = result.width;
@@ -436,6 +461,8 @@ export default function App() {
         blob: photo.blob,
         name: photo.name,
         raw: photo.raw,
+        rawSource: photo.rawSource,
+        metadata: photo.metadata,
         edits: previewEdits,
         savedAt: Date.now(),
       })
@@ -491,6 +518,96 @@ export default function App() {
     setShowOriginal(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setShowMask(false);
+    if (next.id === "raw" && photo?.raw) {
+      const previous = [...previewEdits]
+        .reverse()
+        .find((e) => e.tool === "raw");
+      if (previous) {
+        setActive({ ...previous, params: { ...previous.params } });
+        setEditingId(previous.id);
+        setDirty(false);
+      }
+    }
+  }
+  async function analyzePhoto(
+    kind: "subject" | "face" | "depth",
+    mode = "subject",
+  ) {
+    if (!photo || !active) return;
+    const id = active.id;
+    const token = ++analysisToken.current;
+    setBusy(
+      kind === "subject"
+        ? "Selecting your subject on this device…"
+        : kind === "face"
+          ? "Finding facial landmarks on this device…"
+          : "Estimating scene depth on this device…",
+    );
+    try {
+      const base = editingId
+        ? stack.slice(
+            0,
+            stack.findIndex((e) => e.id === editingId),
+          )
+        : stack;
+      const source = await renderImage(
+          photo.image,
+          base,
+          1000,
+          photo.rawSource,
+        ),
+        result =
+          token === analysisToken.current
+            ? await analyze(source, kind)
+            : undefined;
+      if (!result || token !== analysisToken.current) return;
+      setActive((previous) =>
+        previous?.id === id
+          ? {
+              ...previous,
+              ...result,
+              params: {
+                ...previous.params,
+                ...(kind === "subject"
+                  ? {
+                      mask: mode,
+                      target: mode,
+                      area: mode,
+                      shape:
+                        previous.tool === "lens-blur"
+                          ? "subject"
+                          : previous.params.shape || "radial",
+                    }
+                  : kind === "depth"
+                    ? { shape: "depth" }
+                    : {
+                        ...faceRegion(
+                          result.faces![0],
+                          source.width,
+                          source.height,
+                        ),
+                        faceIndex: 0,
+                      }),
+              },
+            }
+          : previous,
+      );
+      setDirty(true);
+      if (kind === "subject") setShowMask(true);
+      notify(
+        kind === "subject"
+          ? "Selection ready. Adjust just the area you chose."
+          : kind === "face"
+            ? `${result.faces!.length} face${result.faces!.length > 1 ? "s" : ""} detected locally.`
+            : "Depth map ready. Tap your photo to choose the focus distance.",
+      );
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError"))
+        notify(errorText(error));
+    } finally {
+      if (token === analysisToken.current) setBusy("");
+    }
   }
   function setParam(key: string, value: number | string) {
     setActive((prev) =>
@@ -811,9 +928,19 @@ export default function App() {
         ? await pngToCube(file)
         : await file.text();
       parseCube(cube);
+      const lutPng = /\.png$/i.test(file.name) ? await blobDataUrl(file) : "";
       setActive((prev) =>
         prev
-          ? { ...prev, params: { ...prev.params, cube, lutName: file.name } }
+          ? {
+              ...prev,
+              params: {
+                ...prev.params,
+                cube,
+                lutName: file.name,
+                lutPng,
+                lutLayout: "hald",
+              },
+            }
           : prev,
       );
       setDirty(true);
@@ -850,10 +977,18 @@ export default function App() {
       await new Promise((r) => setTimeout(r, 40));
       const max = exportSize === "original" ? 6000 : Number(exportSize),
         result = resizeOutput(
-          await renderImage(photo.image, previewEdits, max),
+          await renderImage(photo.image, previewEdits, max, photo.rawSource),
           max,
         ),
-        blob = await toBlob(result, format, quality / 100);
+        plain = await toBlob(result, format, quality / 100),
+        blob = preserveMetadata
+          ? await withMetadata(
+              plain,
+              photo.metadata,
+              result.width,
+              result.height,
+            )
+          : plain;
       if (blob.type !== format)
         throw new Error(
           "This browser does not support this export format. Try JPG or PNG.",
@@ -891,12 +1026,16 @@ export default function App() {
         );
         await new Promise((r) => setTimeout(r, 20));
         const p = await readPhoto(files[i]),
+          edits = await prepareBatchEdits(p, previewEdits),
           max = exportSize === "original" ? 6000 : Number(exportSize),
           result = resizeOutput(
-            await renderImage(p.image, previewEdits, max),
+            await renderImage(p.image, edits, max, p.rawSource),
             max,
           ),
-          blob = await toBlob(result, format, quality / 100);
+          plain = await toBlob(result, format, quality / 100),
+          blob = preserveMetadata
+            ? await withMetadata(plain, p.metadata, result.width, result.height)
+            : plain;
         if (blob.type !== format)
           throw new Error(
             "This export format is not supported by your browser.",
@@ -925,6 +1064,12 @@ export default function App() {
     }
   }
   async function persistRecipe() {
+    if (previewEdits.length > 200) {
+      notify(
+        "A shared Look supports up to 200 adjustments. Your full photo and edit stack remain saved on this device.",
+      );
+      return;
+    }
     const next: Recipe = {
       version: 1,
       name: recipeName.trim() || "My look",
@@ -940,17 +1085,26 @@ export default function App() {
       notify("Could not save your look. Local storage may be full.");
     }
   }
-  function applyRecipe(r: Recipe) {
-    commit(
-      [
-        ...previewEdits,
-        ...r.edits.map((e) => ({ ...e, id: crypto.randomUUID() })),
-      ],
-      `${r.name} look`,
-    );
-    setActive(freshEdit("tune"));
-    setDialog(null);
-    notify(`${r.name} applied. Make it your own.`);
+  async function applyRecipe(r: Recipe) {
+    if (!photo) return;
+    const token = loadToken.current;
+    setBusy(`Applying ${r.name}…`);
+    try {
+      const incoming = r.edits.map((edit) => ({
+          ...edit,
+          id: crypto.randomUUID(),
+        })),
+        edits = await prepareBatchEdits(photo, incoming, previewEdits);
+      if (token !== loadToken.current) return;
+      commit([...previewEdits, ...edits], `${r.name} look`);
+      setActive(freshEdit("tune"));
+      setDialog(null);
+      notify(`${r.name} applied. Make it your own.`);
+    } catch (error) {
+      notify(errorText(error));
+    } finally {
+      setBusy("");
+    }
   }
   async function importRecipe(file: File) {
     try {
@@ -960,7 +1114,7 @@ export default function App() {
       setRecipes(updated);
       notify(
         imported.length === 1
-          ? `${imported[0].name} added to your looks.`
+          ? `${imported[0].name} added to your looks.${imported[0].warnings?.length ? " " + imported[0].warnings.join(" ") : ""}`
           : `${imported.length} looks added to your collection.`,
       );
       setDialog("looks");
@@ -968,10 +1122,10 @@ export default function App() {
       notify(errorText(e));
     }
   }
-  async function shareQr(r: Recipe) {
+  async function shareQr(r: Recipe, native = false) {
     try {
       const { default: QRCode } = await import("qrcode");
-      const text = JSON.stringify(r);
+      const text = native ? await exportSnapseed(r) : JSON.stringify(r);
       if (text.length > 2000)
         throw new Error(
           "This look is too detailed for a QR code. Download its JSON file instead.",
@@ -1058,7 +1212,7 @@ export default function App() {
         ref={recipeRef}
         data-testid="import-look"
         type="file"
-        accept=".json,.xmp,.cube,.zip,image/png,image/jpeg"
+        accept=".json,.txt,.xmp,.cube,.zip,image/png,image/jpeg"
         hidden
         onChange={(e) => {
           if (e.target.files?.[0]) void importRecipe(e.target.files[0]);
@@ -1170,7 +1324,7 @@ export default function App() {
           <div className="rail-bottom">
             <button
               className="rail-item"
-              onClick={() => cameraRef.current?.click()}
+              onClick={() => setDialog("camera")}
               aria-label="Take a photo"
             >
               <Camera size={21} strokeWidth={1.5} />
@@ -1330,6 +1484,34 @@ export default function App() {
                     aria-label={`Edited preview of ${photo.name}`}
                     data-testid="photo-canvas"
                   />
+                  {showMask && active?.mask && !showOriginal && (
+                    <div
+                      className="selection-overlay"
+                      aria-label={
+                        active.params.mask === "background"
+                          ? "Background selection preview"
+                          : "Subject selection preview"
+                      }
+                      style={{
+                        maskImage:
+                          active.params.mask === "background"
+                            ? `linear-gradient(#fff,#fff), url(${active.mask})`
+                            : `url(${active.mask})`,
+                        WebkitMaskImage:
+                          active.params.mask === "background"
+                            ? `linear-gradient(#fff,#fff), url(${active.mask})`
+                            : `url(${active.mask})`,
+                        maskComposite:
+                          active.params.mask === "background"
+                            ? "exclude"
+                            : undefined,
+                        WebkitMaskComposite:
+                          active.params.mask === "background"
+                            ? "xor"
+                            : undefined,
+                      }}
+                    />
+                  )}
                   {cropped && !showOriginal && (
                     <div
                       className="crop-overlay"
@@ -1637,6 +1819,39 @@ export default function App() {
                   onLut={(file) => void addLut(file)}
                   onAuto={autoAdjust}
                   onCropRatio={cropRatio}
+                  onAnalyze={(kind, mode) => void analyzePhoto(kind, mode)}
+                  showMask={showMask}
+                  onToggleMask={() => setShowMask((v) => !v)}
+                  onClearFace={() => {
+                    setActive((previous) =>
+                      previous
+                        ? { ...previous, faces: undefined, mesh: undefined }
+                        : previous,
+                    );
+                    setDirty(true);
+                  }}
+                  onClearSelection={() => {
+                    setActive((previous) =>
+                      previous
+                        ? {
+                            ...previous,
+                            mask: undefined,
+                            params: {
+                              ...previous.params,
+                              mask: "radial",
+                              area: "all",
+                              target: "all",
+                              shape:
+                                previous.params.shape === "subject"
+                                  ? "radial"
+                                  : previous.params.shape || "radial",
+                            },
+                          }
+                        : previous,
+                    );
+                    setShowMask(false);
+                    setDirty(true);
+                  }}
                 />
                 {tool.id === "tune" && (
                   <div className="gentle-tip">
@@ -1722,6 +1937,26 @@ export default function App() {
           {stack.length > 0 && <i>{stack.length}</i>}
         </button>
       </nav>
+      {dialog === "community" && (
+        <CommunityStudio
+          current={{ version: 1, name: recipeName, edits: previewEdits }}
+          fallback={thumb}
+          getPreview={() => {
+            const source = canvasRef.current;
+            if (!source) return thumb;
+            const small = canvas(
+              280,
+              Math.round((280 * source.height) / source.width),
+            );
+            small
+              .getContext("2d")!
+              .drawImage(source, 0, 0, small.width, small.height);
+            return small.toDataURL("image/jpeg", 0.7);
+          }}
+          onClose={() => setDialog(null)}
+          onApply={applyRecipe}
+        />
+      )}
       {dialog === "tools" && (
         <Modal
           title="A little possibility in every tool."
@@ -1873,6 +2108,20 @@ export default function App() {
               onChange={setQuality}
             />
           )}
+          <label className="metadata-option">
+            <input
+              type="checkbox"
+              checked={preserveMetadata}
+              onChange={(e) => setPreserveMetadata(e.target.checked)}
+            />
+            <span>
+              Preserve camera metadata
+              <small>
+                Includes saved location when present. Dimensions and orientation
+                are updated.
+              </small>
+            </span>
+          </label>
           <p className="export-note">
             <ShieldCheck size={14} /> Export creates a new copy. Your original
             stays yours.
@@ -1918,6 +2167,12 @@ export default function App() {
             <p>One tap. A whole new feeling.</p>
             <button
               className="secondary-button"
+              onClick={() => setDialog("community")}
+            >
+              <Sparkles size={14} /> Discover
+            </button>
+            <button
+              className="secondary-button"
               onClick={() => recipeRef.current?.click()}
             >
               <Upload size={14} /> Import look
@@ -1930,6 +2185,32 @@ export default function App() {
               <Plus size={14} /> Save look
             </button>
           </div>
+          <details className="import-look-text">
+            <summary>Paste a QR look link or JSON</summary>
+            <label className="field-label" htmlFor="look-payload">
+              Look link or JSON
+            </label>
+            <textarea
+              id="look-payload"
+              value={lookLink}
+              maxLength={200000}
+              onChange={(e) => setLookLink(e.target.value)}
+              placeholder="https://snapseed.com/qr?l=…"
+            />
+            <button
+              className="secondary-button"
+              disabled={!lookLink.trim()}
+              onClick={() =>
+                void importRecipe(
+                  new File([lookLink], "pasted-look.txt", {
+                    type: "text/plain",
+                  }),
+                )
+              }
+            >
+              Import pasted look
+            </button>
+          </details>
           <div className="looks-gallery">
             {looks.map((look) => (
               <button
@@ -1974,6 +2255,11 @@ export default function App() {
                     <span>
                       {r.name}
                       <small>{r.edits.length} adjustments</small>
+                      {r.warnings?.map((warning, i) => (
+                        <small key={i} className="recipe-warning">
+                          {warning}
+                        </small>
+                      ))}
                     </span>
                     <ArrowUpRight size={16} />
                   </button>
@@ -1990,9 +2276,26 @@ export default function App() {
                     }
                   />
                   <IconButton
+                    icon={FileImage}
+                    label={`Download ${r.name} as XMP`}
+                    onClick={() =>
+                      download(
+                        new Blob([exportXmp(r)], {
+                          type: "application/rdf+xml",
+                        }),
+                        `${r.name.replace(/[^\w-]/g, "-")}.xmp`,
+                      )
+                    }
+                  />
+                  <IconButton
                     icon={ScanLine}
                     label={`Share ${r.name} as QR`}
                     onClick={() => void shareQr(r)}
+                  />
+                  <IconButton
+                    icon={Aperture}
+                    label={`Share ${r.name} as Snapseed QR`}
+                    onClick={() => void shareQr(r, true)}
                   />
                   <IconButton
                     icon={Trash2}
@@ -2025,8 +2328,8 @@ export default function App() {
             </div>
           )}
           <div className="modal-footnote">
-            Import Still JSON, Still QR images, .cube LUTs, or basic Camera Raw
-            XMP tones.
+            Import Still JSON, QR images or Snapseed links, XMP, 3D LUTs, or ZIP
+            look packs.
           </div>
         </Modal>
       )}
@@ -2113,8 +2416,9 @@ export default function App() {
               <ShieldCheck size={21} />
               <h3>Private by nature</h3>
               <p>
-                Your photos are processed on your device. No uploads, accounts,
-                or watermarks.
+                Your originals and image processing stay on-device. Optional
+                community sharing publishes a look and small preview only when
+                you choose.
               </p>
             </div>
             <div>
@@ -2175,12 +2479,13 @@ export default function App() {
             ))}
           </div>
           <p className="help-limitations">
-            A browser interpretation, with its own character. Portrait and head
-            pose use manual face regions, healing uses a feathered clone, and
-            expansion uses reflection or solid fill. RAW support varies by
-            camera; development adjustments use decoded RGB. Edits use an 8-bit
-            sRGB canvas. Photos over 6000 px are resized; animated images open
-            as a still.
+            Subject and depth models run locally, as do facial landmarks and 3D
+            mesh pose changes. Smart healing and expansion match surrounding
+            texture. RAW controls develop 16-bit linear data before display.
+            Display edits and exports use 8-bit sRGB; source images over 6000 px
+            are resized. Some private Snapseed QR operators and Adobe-only XMP
+            features remain incompatible. Community sharing needs a separately
+            hosted service.
           </p>
           <a
             href={`${import.meta.env.BASE_URL}THIRD_PARTY_NOTICES.txt`}
@@ -2208,6 +2513,28 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {dialog === "camera" && (
+        <CameraStudio
+          recipes={recipes}
+          onClose={() => setDialog(null)}
+          onOpen={() => cameraRef.current?.click()}
+          onCapture={async (file, edits) => {
+            const opened = await replacePhoto(file);
+            if (!opened)
+              throw new Error(
+                "Your captured photo could not be opened. Please try again.",
+              );
+            setHistory([
+              { edits: [], label: "Original photo" },
+              { edits, label: "Captured with editable look" },
+            ]);
+            setCursor(edits.length ? 1 : 0);
+            setActive(freshEdit("tune"));
+            setDirty(false);
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog === "incoming" && (
         <Modal
           title="Which moment shall we start with?"
@@ -2220,6 +2547,12 @@ export default function App() {
             your current edits to the collection from Export.
           </p>
           <div className="incoming-files">
+            <button
+              className="primary-button"
+              onClick={() => void exportBatch([...incoming])}
+            >
+              <Copy size={16} /> Batch edit these photos
+            </button>
             {incoming.map((file, i) => (
               <button key={i} onClick={() => void replacePhoto(file)}>
                 <FileImage size={18} />
@@ -2250,6 +2583,18 @@ export default function App() {
           <div>
             <Aperture size={32} className="spin" />
             <p>{busy}</p>
+            {busy.includes("this device") && (
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  ++analysisToken.current;
+                  cancelAnalysis();
+                  setBusy("");
+                }}
+              >
+                Cancel analysis
+              </button>
+            )}
           </div>
         </div>
       )}

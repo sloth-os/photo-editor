@@ -51,6 +51,10 @@ export type Edit = {
   params: Params;
   points?: StrokePoint[];
   image?: string;
+  mask?: string;
+  depth?: string;
+  faces?: { x: number; y: number; z: number }[][];
+  mesh?: [number, number, number][];
 };
 export type Control = {
   key: string;
@@ -169,7 +173,7 @@ export const tools: Tool[] = [
     group: "Transform",
     description: "A little more room to breathe.",
     controls: [c("amount", "Border size", 10, 0, 50)],
-    hint: "Extends the canvas with a reflected edge, white, or black fill.",
+    hint: "Smart fill synthesizes nearby texture to extend the scene. Reflect and solid fills are also available.",
   },
   {
     id: "selective",
@@ -205,7 +209,7 @@ export const tools: Tool[] = [
       c("offsetX", "Source offset X", 12, -40, 40),
       c("offsetY", "Source offset Y", 0, -40, 40),
     ],
-    hint: "Paint over a small distraction. Clones a feathered nearby source; adjust the source offset as needed.",
+    hint: "Paint over a small distraction. Content-aware healing matches surrounding texture; Clone uses a chosen source offset.",
   },
   {
     id: "hdr",
@@ -341,7 +345,7 @@ export const tools: Tool[] = [
       c("centerY", "Face center Y", 40, 0),
       c("radius", "Face size", 25, 5, 60),
     ],
-    hint: "Position the face area manually. No face detection or biometric data is used.",
+    hint: "Detect faces on-device for precise face and eye adjustments, or position the face area manually.",
   },
   {
     id: "head-pose",
@@ -358,7 +362,7 @@ export const tools: Tool[] = [
       c("centerY", "Face center Y", 40, 0),
       c("radius", "Face size", 25, 5, 60),
     ],
-    hint: "A manual, local 2D face warp. Place the face area before adjusting. This does not reconstruct a 3D face.",
+    hint: "Detect a face to rotate its estimated 3D mesh and refine eyes or smile. Small pose changes preserve the most detail; manual placement remains available.",
   },
   {
     id: "lens-blur",
@@ -432,7 +436,7 @@ export const tools: Tool[] = [
       c("tint", "Tint"),
       c("saturation", "Saturation"),
     ],
-    hint: "RAW files are decoded locally with LibRaw. These controls work on the decoded RGB image, not sensor-linear data.",
+    hint: "Camera RAW files develop locally in 16-bit linear RGB. Exposure, white balance, and tone adjustments apply before conversion to the display image. Original RAW bytes are kept for re-editing.",
   },
   {
     id: "hsl",
@@ -527,6 +531,7 @@ export function defaults(id: string): Params {
   if (id === "curves") params.channel = "rgb";
   if (id === "rotate") Object.assign(params, { turns: 0, flipX: 0, flipY: 0 });
   if (id === "expand") params.fill = "mirror";
+  if (id === "healing") params.method = "smart";
   if (id === "brush") params.mode = "exposure";
   if (["selective", "lens-blur", "vignette"].includes(id))
     Object.assign(params, { x: 50, y: 50 });

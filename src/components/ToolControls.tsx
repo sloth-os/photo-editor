@@ -1,3 +1,4 @@
+import CurveGraph from "./CurveGraph";
 import {
   Upload,
   FlipHorizontal2,
@@ -6,9 +7,12 @@ import {
   RotateCw,
   WandSparkles,
   CircleDot,
+  ScanFace,
+  Wand,
+  Layers,
 } from "lucide-react";
 import { useRef } from "react";
-import { type Edit, type Params, type Tool } from "../lib/catalog";
+import { type Edit, type Tool } from "../lib/catalog";
 import { Slider } from "./ui";
 
 type Props = {
@@ -19,6 +23,11 @@ type Props = {
   onLut: (file: File) => void;
   onAuto: () => void;
   onCropRatio: (ratio: string) => void;
+  onAnalyze: (kind: "subject" | "face" | "depth", mode?: string) => void;
+  showMask: boolean;
+  onToggleMask: () => void;
+  onClearSelection: () => void;
+  onClearFace: () => void;
 };
 
 function Choices({
@@ -59,6 +68,11 @@ export default function ToolControls({
   onLut,
   onAuto,
   onCropRatio,
+  onAnalyze,
+  showMask,
+  onToggleMask,
+  onClearSelection,
+  onClearFace,
 }: Props) {
   const { params: p } = edit,
     overlayInput = useRef<HTMLInputElement>(null),
@@ -78,6 +92,111 @@ export default function ToolControls({
   );
   return (
     <>
+      {["selective", "brush", "lens-blur", "motion"].includes(tool.id) && (
+        <div className="intelligence-controls">
+          <span className="field-label">Smart selection · on-device</span>
+          <div className="choice-row">
+            <button
+              className={edit.mask && p.mask === "subject" ? "selected" : ""}
+              onClick={() => onAnalyze("subject", "subject")}
+            >
+              <Wand size={13} /> Subject
+            </button>
+            <button
+              className={edit.mask && p.mask === "background" ? "selected" : ""}
+              onClick={() => onAnalyze("subject", "background")}
+            >
+              <Layers size={13} /> Background
+            </button>
+          </div>
+          {edit.mask && (
+            <div className="selection-actions">
+              <button
+                className="text-button"
+                aria-pressed={showMask}
+                onClick={onToggleMask}
+              >
+                {showMask ? "Hide selection" : "Preview selection"}
+              </button>
+              <button className="text-button" onClick={onClearSelection}>
+                Clear selection
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {tool.id === "lens-blur" && (
+        <button
+          className="secondary-button full"
+          onClick={() => onAnalyze("depth")}
+        >
+          <Layers size={15} />
+          {edit.depth ? "Recalculate depth map" : "Estimate scene depth"}
+        </button>
+      )}
+      {["portrait", "head-pose"].includes(tool.id) && (
+        <div className="intelligence-controls">
+          <button
+            className="secondary-button full"
+            onClick={() => onAnalyze("face")}
+          >
+            <ScanFace size={15} />
+            {edit.faces?.length
+              ? "Detect faces again"
+              : "Detect faces automatically"}
+          </button>
+          {!!edit.faces?.length && (
+            <>
+              <label className="field-label" htmlFor="face-choice">
+                Detected face
+              </label>
+              <select
+                id="face-choice"
+                value={String(p.faceIndex || 0)}
+                onChange={(e) => setParam("faceIndex", Number(e.target.value))}
+              >
+                {edit.faces.map((_, i) => (
+                  <option value={i} key={i}>
+                    Face {i + 1}
+                  </option>
+                ))}
+              </select>
+              <p className="analysis-note">
+                Face detected on this device.{" "}
+                {tool.id === "head-pose"
+                  ? "Small changes keep the result natural."
+                  : "Lighting and eye adjustments follow this face."}
+              </p>
+              <button className="text-button" onClick={onClearFace}>
+                Use manual placement
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {tool.id === "healing" &&
+        choose("method", ["smart", "clone"], "Healing method", [
+          "Content-aware",
+          "Clone",
+        ])}
+      {tool.id === "grain" && (
+        <div className="choice-section">
+          <label className="field-label" htmlFor="film-stock">
+            Film stock
+          </label>
+          <select
+            id="film-stock"
+            value={String(p.stock || "neutral")}
+            onChange={(e) => setParam("stock", e.target.value)}
+          >
+            <option value="neutral">Neutral analog</option>
+            <option value="portrait">Portrait 160 · soft and warm</option>
+            <option value="cinema">Cinema 400 · rich contrast</option>
+            <option value="tungsten">Tungsten 800 · cool shadows</option>
+            <option value="mono">Mono 400 · silver tones</option>
+          </select>
+        </div>
+      )}
       {tool.id === "tune" && (
         <button className="auto-button" onClick={onAuto}>
           <WandSparkles size={15} />
@@ -88,12 +207,12 @@ export default function ToolControls({
       {tool.id === "curves" && (
         <>
           <CurveGraph params={p} onChange={setParam} />
-          {choose("channel", ["rgb", "red", "green", "blue"], "Channel", [
-            "RGB",
-            "R",
-            "G",
-            "B",
-          ])}
+          {choose(
+            "channel",
+            ["rgb", "red", "green", "blue", "luma"],
+            "Channel",
+            ["RGB", "R", "G", "B", "L"],
+          )}
         </>
       )}
       {tool.id === "white-balance" && (
@@ -106,10 +225,22 @@ export default function ToolControls({
         </button>
       )}
       {tool.id === "lens-blur" &&
-        choose("shape", ["radial", "linear"], "Focus shape", [
-          "Circular",
-          "Linear",
-        ])}
+        choose(
+          "shape",
+          [
+            "radial",
+            "linear",
+            ...(edit.mask ? ["subject"] : []),
+            ...(edit.depth ? ["depth"] : []),
+          ],
+          "Focus shape",
+          [
+            "Circular",
+            "Linear",
+            ...(edit.mask ? ["Subject"] : []),
+            ...(edit.depth ? ["Depth"] : []),
+          ],
+        )}
       {tool.id === "crop" && (
         <div className="choice-section">
           <label className="field-label">Aspect ratio</label>
@@ -175,7 +306,8 @@ export default function ToolControls({
         </div>
       )}
       {tool.id === "expand" &&
-        choose("fill", ["mirror", "white", "black"], "Fill", [
+        choose("fill", ["smart", "mirror", "white", "black"], "Fill", [
+          "Smart",
           "Reflect",
           "White",
           "Black",
@@ -240,6 +372,12 @@ export default function ToolControls({
           </button>
         </>
       )}
+      {tool.id === "lut" &&
+        p.lutPng &&
+        choose("lutLayout", ["hald", "tiled"], "PNG layout", [
+          "Hald",
+          "Tiled / Unreal",
+        ])}
       {tool.id === "hsl" && (
         <div className="color-ranges" role="group" aria-label="Color range">
           {[
@@ -305,14 +443,27 @@ export default function ToolControls({
         </div>
       )}
       <div className="sliders">
-        {tool.controls.map((control) => (
-          <Slider
-            key={control.key}
-            control={control}
-            value={Number(p[control.key] ?? control.value)}
-            onChange={(v) => setParam(control.key, v)}
-          />
-        ))}
+        {tool.controls
+          .filter(
+            (control) =>
+              !(
+                tool.id === "healing" &&
+                p.method === "smart" &&
+                control.key.startsWith("offset")
+              ) &&
+              !(
+                edit.faces?.length &&
+                ["centerX", "centerY", "radius"].includes(control.key)
+              ),
+          )
+          .map((control) => (
+            <Slider
+              key={control.key}
+              control={control}
+              value={Number(p[control.key] ?? control.value)}
+              onChange={(v) => setParam(control.key, v)}
+            />
+          ))}
       </div>
       {tool.hint && (
         <div className="tool-hint">
@@ -328,85 +479,5 @@ export default function ToolControls({
         </p>
       )}
     </>
-  );
-}
-
-function CurveGraph({
-  params: p,
-  onChange,
-}: {
-  params: Params;
-  onChange: (key: string, value: number) => void;
-}) {
-  const keys = ["blacks", "shadows", "midtones", "highlights", "whites"],
-    points = keys.map(
-      (key, i) =>
-        `${20 + i * 55},${180 - Math.max(0, Math.min(1, i / 4 + Number(p[key] || 0) / 300)) * 160}`,
-    );
-  const drag = useRef<number | null>(null);
-  function update(e: React.PointerEvent<SVGSVGElement>) {
-    const rect = e.currentTarget.getBoundingClientRect(),
-      x = ((e.clientX - rect.left) / rect.width) * 260,
-      y = ((e.clientY - rect.top) / rect.height) * 200,
-      index =
-        drag.current ?? Math.max(0, Math.min(4, Math.round((x - 20) / 55)));
-    drag.current = index;
-    const value = Math.max(
-      -100,
-      Math.min(100, Math.round(((180 - y) / 160 - index / 4) * 300)),
-    );
-    onChange(keys[index], value);
-  }
-  return (
-    <svg
-      className="curve-graph"
-      style={{ touchAction: "none", cursor: "crosshair" }}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        update(e);
-      }}
-      onPointerMove={(e) => {
-        if (drag.current !== null) update(e);
-      }}
-      onPointerUp={() => {
-        drag.current = null;
-      }}
-      onPointerCancel={() => {
-        drag.current = null;
-      }}
-      viewBox="0 0 260 200"
-      role="img"
-      aria-label="Tone curve. Drag a control point or use the tone sliders below."
-    >
-      <path
-        d="M20 20V180H240M20 140H240M20 100H240M20 60H240M75 20V180M130 20V180M185 20V180M240 20V180"
-        stroke="#ffffff12"
-        fill="none"
-      />
-      <path d="M20 180L240 20" stroke="#ffffff25" strokeDasharray="3 4" />
-      <polyline
-        points={points.join(" ")}
-        stroke={
-          p.channel === "red"
-            ? "#ed9c9c"
-            : p.channel === "green"
-              ? "#afcb8c"
-              : p.channel === "blue"
-                ? "#9abcec"
-                : "#d1e5a6"
-        }
-        strokeWidth="2"
-        fill="none"
-      />
-      {points.map((point, i) => (
-        <circle
-          key={i}
-          cx={point.split(",")[0]}
-          cy={point.split(",")[1]}
-          r="4"
-          fill="#d1e5a6"
-        />
-      ))}
-    </svg>
   );
 }

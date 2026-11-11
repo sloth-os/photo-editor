@@ -72,7 +72,7 @@ export function Slider({
           title={`Reset ${label}`}
         >
           {value > 0 && min < 0 ? "+" : ""}
-          {value}
+          {control.key === "exposure" ? `${(value / 50).toFixed(2)} EV` : value}
           {label === "Straighten" || label === "Direction" ? "°" : ""}
         </button>
       </div>

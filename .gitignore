@@ -7,3 +7,7 @@ playwright-report/
 public/vendor/
 public/licenses/generated/
 *.tsbuildinfo
+.data/
+.env
+.env.*
+!.env.example
