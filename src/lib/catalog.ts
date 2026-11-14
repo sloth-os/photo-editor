@@ -47,6 +47,7 @@ import {
   ShieldOff,
   PaintBucket,
   ScanText,
+  FileScan,
 } from "lucide-react";
 
 export type Params = Record<string, number | string>;
@@ -293,6 +294,15 @@ export const tools: Tool[] = [
     description: "Read the words in your image, on this device.",
     controls: [],
     hint: "English, simplified/traditional Chinese, Japanese, Korean, Spanish, French, German, Arabic and Hindi. Recognize the whole image or a cropped region, copy, save, or add the text to your photo.",
+  },
+  {
+    id: "scanner",
+    name: "Document scanner",
+    icon: FileScan,
+    group: "Utilities",
+    description: "From paper to a clear, shareable document.",
+    controls: [],
+    hint: "Scan documents, receipts, cards, and whiteboards. Camera capture, automatic page edges, touch corner adjustment, perspective correction, shadow cleanup, multipage PDF, searchable OCR, and image export. Works offline.",
   },
   {
     id: "healing",

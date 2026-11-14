@@ -118,7 +118,7 @@ export function validateRecipe(value: unknown): Recipe {
       "This look is not supported. Use a Still .json look file with up to 200 adjustments.",
     );
   const ids = new Set([
-    ...tools.filter((t) => t.id !== "ocr").map((t) => t.id),
+    ...tools.filter((t) => !["ocr", "scanner"].includes(t.id)).map((t) => t.id),
     "look",
   ]);
   const edits = r.edits.map((edit) => {

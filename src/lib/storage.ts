@@ -1,6 +1,7 @@
 import type { Edit } from "./catalog";
 import type { Recipe } from "./files";
 import type { CameraMetadata } from "./metadata";
+import type { ScanDocument } from "./scanner-types";
 
 export type SavedProject = {
   blob: Blob;
@@ -57,3 +58,6 @@ export const saveRecipes = (recipes: Recipe[]) => write("recipes", recipes);
 export const loadCommunity = <T>(key: string) => read<T>(`community-${key}`);
 export const saveCommunity = (key: string, value: unknown) =>
   write(`community-${key}`, value);
+export const loadScanDocument = () => read<unknown>("document-scanner");
+export const saveScanDocument = (document: ScanDocument) =>
+  write("document-scanner", document);

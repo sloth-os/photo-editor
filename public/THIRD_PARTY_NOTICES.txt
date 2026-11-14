@@ -68,3 +68,11 @@ Ten tessdata_fast language models (4.1.0), Apache License 2.0.
 https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0
 Pinned sources/checksums: models/ocr/SOURCES.md.
 Full license: licenses/Tesseract-Apache-2.txt.
+
+Local document PDF generation:
+pdf-lib: Andrew Dillon and contributors, MIT License.
+https://github.com/Hopding/pdf-lib
+@pdf-lib/standard-fonts and @pdf-lib/upng: MIT License.
+https://github.com/Hopding/standard-fonts
+https://github.com/Hopding/upng
+Their licenses and tslib's license are copied to licenses/generated/.

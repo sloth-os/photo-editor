@@ -130,3 +130,7 @@ prevents stale results and releases the worker. A selected crop, editable text,
 optional word boxes, copy/TXT output, and a text-layer action fit into a responsive
 dialog. The OCR UI and drawing renderer load on demand and are precached for
 offline use.
+
+## Document scanner
+
+The scanner follows the capture, corner correction, cleanup, organization, and export workflow researched in CamScanner and Microsoft Lens. It uses a separate local document draft and a large touch crop view. Image detection/rectification run in a worker; the PDF module loads only when exporting and is cached for offline use. The photo editor supplies annotations and privacy edits through explicit page replacement. See [scanner research, implementation, and limits](DOCUMENT_SCANNER.md).

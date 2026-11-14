@@ -118,6 +118,10 @@ for (const name of [
   "idb-keyval",
   "wasm-feature-detect",
   "zlibjs",
+  "pdf-lib",
+  "@pdf-lib/standard-fonts",
+  "@pdf-lib/upng",
+  "tslib",
 ]) {
   const root = new URL(`../node_modules/${name}/`, import.meta.url);
   for (const file of (await readdir(root)).filter((f) =>

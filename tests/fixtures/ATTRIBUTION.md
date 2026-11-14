@@ -17,3 +17,8 @@ fixtures rendered for this project. Chinese/Japanese glyphs use Noto Sans CJK JP
 (SIL Open Font License 1.1), from
 https://github.com/notofonts/noto-cjk/tree/main/Sans/OTF/Japanese .
 The fixture text is original test content; font files are not embedded in the app.
+
+`document-perspective.png` is an original synthetic invoice created for this
+project. Text and colored rules were projected onto a skewed quadrilateral with
+an illumination gradient to test page detection, cleanup, perspective correction,
+live camera capture, and actual OCR. It contains no real personal information.

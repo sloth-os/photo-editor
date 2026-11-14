@@ -1,6 +1,6 @@
 # Still
 
-A mobile-friendly, Snapseed-inspired photo studio with **46 tools**, non-destructive editing, drawing, local OCR/AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
+A mobile-friendly, Snapseed-inspired photo studio with **47 tools**, non-destructive editing, a document scanner, drawing, local OCR/AI, camera Looks, and offline operation. Original photos and image processing stay on your device. An optional, separately hosted community adds shared Looks and accounts.
 
 ## Run and check
 
@@ -22,6 +22,8 @@ npm run preview              # installation/offline testing
 Development intentionally does not register a service worker. Use production preview to test offline behavior. The first online visit caches approximately **90 MB**, including the RAW decoder, learned/OCR models, and their runtimes. Once installation completes, editing, OCR, inference, capture effects, imports, and exports work without a server connection.
 
 ## Editing
+
+- **Scan** opens a mobile document scanner: live edges and steady auto capture, front/back cameras, touch corners with a magnifier, perspective correction, paper/whiteboard cleanup, and a 20-page organizer. Export PDF, searchable Unicode PDF, JPG/PNG, numbered ZIP, or TXT; scans autosave separately and work offline. Annotate/redact a copy in the photo editor and replace its scanned page before export. See [document scanner and research](docs/DOCUMENT_SCANNER.md).
 
 - Touch layouts prioritize an edge-to-edge photo, a compact single-adjustment dock, and 44 px controls. **More controls** opens the full inspector; **More photo** returns to the compact dock. Wide touch tablets use a side inspector. **Expand photo preview** hides the editor chrome for inspection without losing edits.
 - Pinch up to 8× and pan with two fingers in every tool. One finger still paints with Brush/Healing; **Pan photo** provides an explicit navigation mode. Pinching cancels the first contact's tentative brush stroke.

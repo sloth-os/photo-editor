@@ -36,6 +36,8 @@ Still is an independent Snapseed-inspired implementation. Included features oper
 | Glow / bloom / halation                    | Softening, thresholded highlight bloom, warm/red light spread                                                                                                                                                           |
 | LUT                                        | Trilinear 3D sampling, .cube up to 64³, Hald and tiled PNG layouts                                                                                                                                                      |
 
+Document scanning adds live camera edges and steady auto capture, corner adjustment/magnifier, perspective correction, document/whiteboard cleanup, a 20-page organizer, separate recovery, OCR, searchable Unicode PDF, and image/ZIP/TXT export. Annotation and privacy edits return through the photo-editor copy/replace workflow. See [scanner details and boundaries](DOCUMENT_SCANNER.md).
+
 ## Workflows
 
 | Feature                   | Status                                                                                                                                                                             |

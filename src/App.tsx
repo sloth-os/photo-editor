@@ -125,6 +125,7 @@ import CommunityStudio from "./components/CommunityStudio";
 import { exportXmp } from "./lib/presets";
 import { exportSnapseed } from "./lib/snapseed";
 const OcrStudio = lazy(() => import("./components/OcrStudio"));
+const ScannerStudio = lazy(() => import("./components/ScannerStudio"));
 
 type Snapshot = { edits: Edit[]; label: string };
 type MarkHistory = { editId: string; past: Mark[][]; future: Mark[][] };
@@ -140,6 +141,7 @@ type Dialog =
   | "camera"
   | "community"
   | "ocr"
+  | "scanner"
   | null;
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -621,6 +623,10 @@ export default function App() {
     notify(`${tool.name} applied.`);
   }
   function selectTool(next: Tool) {
+    if (next.id === "scanner") {
+      setDialog("scanner");
+      return;
+    }
     if (next.id === "ocr") {
       setDialog("ocr");
       return;
@@ -2017,6 +2023,14 @@ export default function App() {
           <div className="rail-bottom">
             <button
               className="rail-item"
+              onClick={() => setDialog("scanner")}
+              aria-label="Scan documents"
+            >
+              <ScanLine size={21} strokeWidth={1.5} />
+              <span>Scan</span>
+            </button>
+            <button
+              className="rail-item"
               onClick={() => setDialog("camera")}
               aria-label="Take a photo"
             >
@@ -2735,6 +2749,13 @@ export default function App() {
           <span>Tools</span>
         </button>
         <button
+          onClick={() => setDialog("scanner")}
+          aria-label="Scan documents"
+        >
+          <ScanLine size={19} />
+          <span>Scan</span>
+        </button>
+        <button
           onClick={() => {
             setRail("history");
             setMobilePanel(true);
@@ -3423,6 +3444,45 @@ export default function App() {
               setMobilePanel(true);
               setPanelExpanded(false);
               setShowOriginal(false);
+            }}
+          />
+        </Suspense>
+      )}
+      {dialog === "scanner" && (
+        <Suspense
+          fallback={
+            <Modal
+              title="Opening document scanner…"
+              onClose={() => setDialog(null)}
+            >
+              <LoaderCircle className="spin" />
+            </Modal>
+          }
+        >
+          <ScannerStudio
+            onClose={() => setDialog(null)}
+            getSource={
+              photo
+                ? async () => {
+                    const native = await measureOutput(photo, previewEdits),
+                      size = fitDimensions(native.width, native.height, 3200),
+                      scale = Math.min(
+                        1,
+                        Math.sqrt(8000000 / (size.width * size.height)),
+                      );
+                    return renderForExport(photo, previewEdits, {
+                      width: Math.floor(size.width * scale),
+                      height: Math.floor(size.height * scale),
+                    });
+                  }
+                : undefined
+            }
+            onEditPage={async (file) => {
+              if (!(await replacePhoto(file)))
+                throw new Error(
+                  "The scanned page could not open in the editor.",
+                );
+              setDialog(null);
             }}
           />
         </Suspense>

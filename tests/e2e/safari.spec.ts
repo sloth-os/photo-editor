@@ -10,6 +10,15 @@ import {
 } from "./output-helpers";
 import { diagram, mode, pixel, stroke, tool } from "./annotation-helpers";
 import { ocrPhoto, openOcr, scan } from "./ocr-helpers";
+import {
+  scanner,
+  addScanFiles,
+  scanView,
+  scanSignature,
+  scanDownload,
+  documentPhoto,
+  japanesePhoto,
+} from "./scanner-helpers";
 
 test("iPhone WebKit renders every Look and its thumbnail without Canvas.filter", async ({
   page,
@@ -172,6 +181,88 @@ test("iPhone WebKit draws colored annotations and fills or redacts real image pi
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("iPhone WebKit detects a document, corrects perspective and exports PNG and multipage PDF", async ({
+  page,
+}) => {
+  await ready(page);
+  await scanner(page);
+  await addScanFiles(page, [documentPhoto, documentPhoto]);
+  await expect
+    .poll(
+      async () =>
+        (await page
+          .getByRole("group", { name: "Document corner editor" })
+          .boundingBox())!.width,
+    )
+    .toBeGreaterThan(330);
+  await scanView(page);
+  const before = await scanSignature(page);
+  await page
+    .getByRole("group", { name: "Document filter" })
+    .getByRole("button", { name: "Black & white", exact: true })
+    .click();
+  await expect.poll(() => scanSignature(page)).not.toBe(before);
+  await page.getByRole("tab", { name: "Export", exact: true }).click();
+  const pdf = await scanDownload(page, "Download PDF");
+  const { PDFDocument } = await import("pdf-lib");
+  expect((await PDFDocument.load(pdf.bytes)).getPageCount()).toBe(2);
+  await page.getByLabel("File format", { exact: true }).selectOption("png");
+  await page.getByLabel("Export pages", { exact: true }).selectOption("page");
+  const png = await scanDownload(page, "Download PNG");
+  expect(png.bytes.subarray(1, 4).toString()).toBe("PNG");
+  const size = await decodedSize(page, png.bytes, "image/png");
+  expect(size.width).toBeLessThan(1200);
+  expect(size.height).toBeLessThan(1100);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("iPhone WebKit recognizes Japanese scan text and embeds it in a searchable PDF", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await ready(page);
+  await scanner(page);
+  await addScanFiles(page, japanesePhoto);
+  await page
+    .getByRole("group", { name: "Scanner preview" })
+    .getByRole("button", { name: "Text", exact: true })
+    .click();
+  await page
+    .getByLabel("Scan text language", { exact: true })
+    .selectOption("jpn");
+  await page
+    .getByRole("button", { name: "Recognize page", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Recognized page text", { exact: true }),
+  ).toHaveValue(/日本語の文字認識/, { timeout: 60_000 });
+  await page.getByRole("tab", { name: "Export", exact: true }).click();
+  await page.getByLabel("Searchable PDF with OCR", { exact: true }).check();
+  const exported = await scanDownload(page, "Download PDF"),
+    { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs"),
+    loading = getDocument({
+      data: new Uint8Array(exported.bytes),
+      useSystemFonts: false,
+      disableFontFace: true,
+    }),
+    pdf = await loading.promise;
+  const content = await (await pdf.getPage(1)).getTextContent();
+  expect(
+    content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join("")
+      .replace(/\s/g, ""),
+  ).toContain("日本語の文字認識");
+  await loading.destroy();
+  expect(errors).toEqual([]);
 });
 
 test("iPhone WebKit recognizes English with the bundled OCR worker and model", async ({
